@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "SecondLook",
+  "version": "1.0.0",
+  "description": "Quality-of-life tools that quietly watch your back. Local-only, zero telemetry, every warning undoable.",
+  "minimum_chrome_version": "116",
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "action": {
+    "default_popup": "ui/popup.html",
+    "default_title": "SecondLook",
+    "default_icon": {
+      "16": "assets/icons/icon-16.png",
+      "32": "assets/icons/icon-32.png",
+      "48": "assets/icons/icon-48.png",
+      "128": "assets/icons/icon-128.png"
+    }
+  },
+  "options_page": "ui/popup.html",
+  "icons": {
+    "16": "assets/icons/icon-16.png",
+    "32": "assets/icons/icon-32.png",
+    "48": "assets/icons/icon-48.png",
+    "128": "assets/icons/icon-128.png"
+  },
+  "permissions": [
+    "storage", "tabs", "scripting", "downloads", "cookies",
+    "alarms", "contextMenus", "tabGroups",
+    "declarativeNetRequest", "webRequest"
+  ],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "content_scripts": [],
+  "web_accessible_resources": []
+}

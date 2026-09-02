@@ -1,0 +1,57 @@
+/* ui/tokens.css - design tokens; loaded by extension pages AND injected
+ * into pages. Page usage: everything sits under a .sl-root wrapper. */
+:root, .sl-root {
+  --sl-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* ink scale (light mode) */
+  --sl-ink: #1f2933;          /* primary text */
+  --sl-ink-2: #52606d;        /* secondary text */
+  --sl-ink-3: #7b8794;        /* muted / meta */
+  --sl-line: #cbd2d9;         /* hairlines, borders */
+  --sl-surface: #ffffff;      /* cards, toasts */
+  --sl-surface-2: #f5f7fa;    /* page-ish fills */
+  --sl-focus: #2563eb;        /* focus ring */
+  /* verdict colors - AA on --sl-surface in light mode */
+  --sl-ok: #15803d;           /* CLEAR */
+  --sl-ok-bg: #ecfdf3;
+  --sl-warn: #b45309;         /* SECOND LOOK */
+  --sl-warn-bg: #fff7e6;
+  --sl-danger: #b91c1c;       /* INTERCEPTED */
+  --sl-danger-bg: #fdecec;
+  /* spacing scale (8px base) */
+  --sl-s1: 4px;  --sl-s2: 8px;  --sl-s3: 12px;
+  --sl-s4: 16px; --sl-s5: 24px; --sl-s6: 32px;
+  /* type scale */
+  --sl-fz-tiny: 11px; --sl-fz-small: 12px;
+  --sl-fz-base: 13px; --sl-fz-title: 15px;
+  /* radii and motion */
+  --sl-r-lg: 12px; --sl-r-md: 8px; --sl-r-pill: 999px;
+  --sl-t-fast: 150ms;
+  /* z-index scale - our UI always outranks page UI */
+  --sl-z-chip: 8000;
+  --sl-z-banner: 9000;
+  --sl-z-toast: 9500;
+  --sl-z-modal: 10000;
+  --sl-shadow: 0 4px 16px rgba(15, 23, 42, 0.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root, .sl-root {
+    --sl-ink: #e6eaf0;
+    --sl-ink-2: #a8b3c1;
+    --sl-ink-3: #7e8a99;
+    --sl-line: #3a4654;
+    --sl-surface: #1f2933;
+    --sl-surface-2: #17202a;
+    --sl-focus: #60a5fa;
+    --sl-ok: #34d399;      --sl-ok-bg: rgba(20, 83, 45, 0.35);
+    --sl-warn: #fbbf24;    --sl-warn-bg: rgba(120, 53, 15, 0.35);
+    --sl-danger: #f87171;  --sl-danger-bg: rgba(127, 29, 29, 0.4);
+    --sl-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  }
+}
+/* Motion opt-out: animations become instant, pulses become static. */
+@media (prefers-reduced-motion: reduce) {
+  .sl-root *, body.sl-page * {
+    animation-duration: 0.001s !important;
+    transition-duration: 0.001s !important;
+  }
+}

@@ -1,0 +1,74 @@
+/* ui/popup.css - popup layout only. Components come from components.css. */
+html, body { margin: 0; padding: 0; }
+body { width: 340px; }
+#slp { display: flex; flex-direction: column; max-height: 580px; }
+#slp-pillars { overflow-y: auto; flex: 1 1 auto; }
+.slp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sl-s3);
+  border-bottom: 1px solid var(--sl-line);
+}
+.slp-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sl-ink);
+}
+.slp-brand__name { font-weight: 700; font-size: var(--sl-fz-title); }
+.slp-paused {
+  background: var(--sl-warn-bg);
+  color: var(--sl-warn);
+  font-size: var(--sl-fz-small);
+  padding: var(--sl-s2) var(--sl-s3);
+}
+.slp-site { padding: var(--sl-s2) var(--sl-s3); border-bottom: 1px solid var(--sl-line); }
+.slp-site__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: var(--sl-s2);
+}
+.slp-site__host {
+  font-size: var(--sl-fz-small);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.slp-pillar { border-bottom: 1px solid var(--sl-line); }
+.slp-pillar__head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sl-s2) var(--sl-s3);
+  background: none;
+  border: 0;
+  font-size: var(--sl-fz-tiny);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--sl-ink-3);
+  cursor: pointer;
+}
+.slp-pillar__chev { transition: transform var(--sl-t-fast); }
+.slp-pillar[data-collapsed="true"] .slp-pillar__chev {
+  transform: rotate(-90deg);
+}
+.slp-pillar__rows { padding: var(--sl-s1) 0; }
+.slp-pillar[data-collapsed="true"] .slp-pillar__rows { display: none; }
+.slp-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--sl-s2);
+  padding: var(--sl-s2) var(--sl-s3);
+  border-top: 1px solid var(--sl-line);
+}
+.slp-footer__privacy {
+  margin-left: auto;
+  font-size: var(--sl-fz-tiny);
+  color: var(--sl-ink-3);
+}

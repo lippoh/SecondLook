@@ -1,0 +1,8 @@
+/* modules/demo-greeting/demo-greeting.css */
+.sl-demo-chip {
+  left: var(--sl-s2);
+  right: auto;          /* bottom-LEFT: never collides with P10 chip */
+  bottom: var(--sl-s2);
+  top: auto;
+  color: var(--sl-ink-2);
+}

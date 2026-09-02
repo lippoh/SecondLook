@@ -1,0 +1,9 @@
+/* modules/link-sniper/link-sniper.css */
+.sl-ls-pill {
+  position: absolute;
+  z-index: var(--sl-z-chip);
+  cursor: pointer;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
