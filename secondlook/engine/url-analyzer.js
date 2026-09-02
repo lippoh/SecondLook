@@ -12,6 +12,9 @@
     BRAND_TYPO: 40,
     BRAND_IN_SUBDOMAIN: 30,
     INVISIBLE_CHARS: 50,
+    MAGNET_LINK: 30,
+    TORRENT_FILE: 30,
+    PIRACY_MEDIA: 24,
     IP_LITERAL: 30,
     USERINFO_URL: 25,
     NONSTD_PORT: 15,
@@ -33,6 +36,23 @@
     'rebrand.ly', 'buff.ly', 'ow.ly', 's.id', 'v.gd', 'rb.gy', 'tiny.cc',
     'shrtco.de', 't.ly', 'soo.gd', 'clck.ru', 'shorte.st', 'gg.gg',
     'short.gy', 'budurl.com', 'qr.ae'
+  ];
+  /* Torrent / unlicensed-media hints. Wording stays neutral on purpose:
+   * the engine says "looks like", never "this is illegal". */
+  const PIRACY_DOMAINS = new Set([
+    'thepiratebay.org', '1337x.to', '1337x.st', 'yts.mx', 'yts.lt',
+    'rarbg.to', 'rarbg.is', 'eztv.re', 'eztv.it', 'limetorrents.info',
+    'torrentgalaxy.to', 'katcr.to', 'fmovies.to', 'fmovies.wtf',
+    'putlocker.to', 'putlockers.net', 'soap2day.to', 'soap2day.rs',
+    'solarmovie.to', '123movies.net', 'cineb.net', 'openload.co',
+    'rapidgator.net', 'sendspace.com'
+  ]);
+  const PIRACY_KEYWORDS = [
+    'torrent', 'magnet', 'warez', 'cracked', 'pirate', 'piracy',
+    '123movies', 'putlocker', 'soap2day', 'solarmovie', 'watchfree',
+    'freemovie', 'freemovies', 'fullmovie', 'hdfull', 'cineb', 'fmovies',
+    'watchseries', 'subscene', 'yts', '1337x', 'thepiratebay', 'eztv',
+    'openload', 'rarbg', 'extratorrent'
   ];
   const HARVEST_KEYWORDS = [
     'login', 'signin', 'verify', 'verification', 'secure', 'account',
@@ -58,6 +78,29 @@
     const registrable = D.eTLDPlus1(host);
     const regLabel = D.registrableLabel(host);
     const labels = D.splitHost(host);
+    // 0. torrent / unlicensed-media hints. Neutral wording on purpose:
+    //    the engine flags a "second look", never asserts illegality.
+    if (u.protocol === 'magnet:') {
+      add('MAGNET_LINK',
+          'This is a torrent magnet link - it starts a peer-to-peer ' +
+          'download of untrusted content.');
+    } else if (/\.torrent(?:\/|$)/i.test(u.pathname || '')) {
+      add('TORRENT_FILE',
+          'This points to a .torrent file - a peer-to-peer download of ' +
+          'potentially unlicensed content.');
+    }
+    if (!D.isIpLiteral(host)) {
+      const mediaText = (host + ' / ' + (u.pathname || '')).toLowerCase();
+      if (PIRACY_DOMAINS.has(registrable)) {
+        add('PIRACY_MEDIA',
+            'This site is commonly associated with torrenting or ' +
+            'unlicensed streaming.');
+      } else if (PIRACY_KEYWORDS.some((kw) => mediaText.includes(kw))) {
+        add('PIRACY_MEDIA',
+            'This address looks like it points to torrenting or ' +
+            'unlicensed media.');
+      }
+    }
     // 1. punycode / non-ASCII host
     if (host.startsWith('xn--') || labels.some((l) => l.startsWith('xn--')) ||
         /[^\x00-\x7f]/.test(host)) {

@@ -30,9 +30,12 @@
   function analyze(url, context) {
     const ctx = context || {};
     const Url = root.Engine.Url;
+    const Domain = root.Engine.Domain;
     const first = Url.analyzeUrl(url, ctx);
     const signals = first.signals.slice();
-    let meta = Object.assign({}, first.meta, { host: first.host });
+    let meta = Object.assign({}, first.meta,
+      { host: first.host, registrable: first.registrable,
+        isIp: Domain.isIpLiteral(first.host) });
     // Shortlinks: judge the resolved destination too, if provided.
     if (ctx.resolvedUrl && ctx.resolvedUrl !== url) {
       const second = Url.analyzeUrl(ctx.resolvedUrl, ctx);

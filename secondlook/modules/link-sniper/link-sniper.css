@@ -3,7 +3,23 @@
   position: absolute;
   z-index: var(--sl-z-chip);
   cursor: pointer;
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Full message: drop the pill's nowrap + ellipsis so the cloud grows
+   * and wraps with the text, capped so it never spills off-screen. */
+  display: inline-block;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
+  text-overflow: clip;
+  overflow: visible;
+  max-width: min(380px, calc(100vw - 24px));
+}
+.sl-ls-pill::before {
+  /* keep the status dot on the first line of a wrapped message */
+  display: inline-block;
+  margin: 0 6px 1px 0;
+  vertical-align: baseline;
+}
+.sl-ls-pill--pinned {
+  box-shadow: var(--sl-shadow);
+  border: 1px solid var(--sl-ink-3);
 }

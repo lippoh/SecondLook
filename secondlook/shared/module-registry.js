@@ -56,7 +56,16 @@
       }] },
     { id: 'redirectDetective', name: 'Redirect Detective', pillar: 'linkIntel',
       blurb: 'Follows redirect chains hop by hop.',
-      defaultEnabled: true, scripts: null },          // <- Part 2
+      defaultEnabled: true,
+      scripts: [{
+        id: 'sl-cs-redirect-detective', matches: ['http://*/*', 'https://*/*'],
+        runAt: 'document_idle', world: 'ISOLATED', allFrames: false,
+        js: ['shared/messaging.js', 'shared/cs-bridge.js',
+             'ui/toast.js', 'ui/verdict-card.js',
+             'modules/redirect-detective/redirect-detective.js'],
+        css: ['ui/tokens.css', 'ui/components.css',
+              'modules/redirect-detective/redirect-detective.css']
+      }] },     // <- Part 2
     { id: 'trustBadge', name: 'Trust Badge', pillar: 'linkIntel',
       blurb: 'Flags trust seals that are just images.',
       defaultEnabled: true, scripts: null },          // <- Part 3
