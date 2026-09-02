@@ -4,55 +4,52 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SecondLook</title>
-  <link rel="stylesheet" href="/ui/tokens.css">
-  <link rel="stylesheet" href="/ui/components.css">
-  <link rel="stylesheet" href="/ui/popup.css">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+  <link rel="stylesheet" href="popup.css">
 </head>
-<body class="sl-page sl-root">
-  <main id="slp">
-    <header class="slp-header">
-      <div class="slp-brand">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"
-                fill="none" stroke="currentColor" stroke-width="1.6"/>
-          <circle cx="12" cy="12" r="3" fill="currentColor"/>
+<body class="sl-popup">
+
+  <header class="sl-popup__header">
+    <div class="sl-brand">
+      <span class="sl-brand__mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+             stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/>
+          <circle cx="12" cy="12" r="2.6"/>
         </svg>
-        <span class="slp-brand__name">SecondLook</span>
+      </span>
+      <div>
+        <span class="sl-brand__name">SecondLook</span>
+        <span class="sl-brand__tag">A second look, not a lecture</span>
       </div>
-      <label class="sl-toggle" title="Pause all modules">
-        <input id="slp-global" type="checkbox" aria-label="Pause all modules">
-        <span class="sl-toggle__track"></span>
-      </label>
-    </header>
-    <div id="slp-paused" class="slp-paused" hidden>
-      Paused - everything stays off until you flip this back.
     </div>
-    <section id="slp-site" class="slp-site" hidden>
-      <div class="slp-site__row">
-        <div class="slp-site__host" id="slp-host"></div>
-        <span id="slp-verdict"></span>
-      </div>
-      <button id="slp-safemode" class="sl-btn" type="button">
-        Safe Mode this tab
-      </button>
-    </section>
-    <div id="slp-empty" class="sl-empty" hidden>
-      Nothing to look at on this page type.
-    </div>
-    <nav id="slp-pillars" aria-label="Modules"></nav>
-    <footer class="slp-footer">
-      <button id="slp-dashboard" class="sl-btn" type="button" disabled
-              title="Arrives in Part 11">Dashboard</button>
-      <button id="slp-options" class="sl-btn" type="button">Settings</button>
-      <div class="slp-footer__privacy">Local-only. No telemetry.</div>
-    </footer>
-  </main>
-  <script src="/shared/storage.js"></script>
-  <script src="/shared/settings.js"></script>
-  <script src="/shared/messaging.js"></script>
-  <script src="/shared/module-registry.js"></script>
-  <script src="/ui/toast.js"></script>
-  <script src="/ui/verdict-card.js"></script>
-  <script src="/ui/popup.js"></script>
+  </header>
+
+  <div class="sl-popup__site">
+    <span class="sl-popup__site-label">Site</span>
+    <span class="sl-popup__site-host" id="slSiteHost">—</span>
+    <span class="sl-popup__site-note" id="slSiteNote"></span>
+  </div>
+
+  <section class="sl-popup__verdict" id="slVerdict" aria-live="polite"></section>
+
+  <main class="sl-popup__modules" id="slModules"></main>
+
+  <footer class="sl-popup__footer">
+    <label class="sl-pause">
+      <span class="sl-toggle">
+        <input type="checkbox" id="slPauseAll">
+        <span class="sl-toggle__track"><span class="sl-toggle__thumb"></span></span>
+      </span>
+      <span class="sl-pause__label">Pause everything</span>
+    </label>
+    <button type="button" class="sl-linklike" id="slOptions">Settings</button>
+  </footer>
+
+  <script src="../shared/settings.js"></script>
+  <script src="verdict-card.js"></script>
+  <script src="popup.js"></script>
 </body>
 </html>

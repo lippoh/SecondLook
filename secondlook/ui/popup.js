@@ -1,237 +1,314 @@
-/* ui/popup.js - renders pillars/rows from the registry; every mutation
- * goes through the router so the SW stays the single settings writer. */
+/* ============================================================
+   SecondLook — ui/popup.js  (v1.2)
+   Readable popup + live Link Sniper counters.
+   Writes go through SL.Settings with a triple fallback
+   (Settings.set(obj) -> Settings.set(key, value) -> direct
+   chrome.storage.local write to "sl.settings"), so the toggle
+   lifecycle in bootstrap.js can never silently break.
+   ============================================================ */
 (function () {
   'use strict';
-  const send = SL.msg.send;
-  const $ = (id) => document.getElementById(id);
-  const state = { tabId: null, snapshot: null, settings: null };
-  /* one 16x16 stroke icon per module - SVG only, never emoji */
-  const ICONS = {
-    demoGreeting: eyeIcon(), linkSniper: eyeIcon(),
-    redirectDetective: chainIcon(), trustBadge: sealIcon(),
-    formGuardian: formIcon(), ghostClick: ghostIcon(),
-    fakeDownload: dlIcon(), downloadGuard: shieldIcon(),
-    tabGuard: tabsIcon(), cookieTamer: cookieIcon(), avIndicator: camIcon()
-  };
-  function svgWrap(inner) {
-    return '<svg viewBox="0 0 24 24" width="16" height="16" ' +
-      'aria-hidden="true">' + inner + '</svg>';
+
+  const SL = window.SL || {};
+  const SETTINGS_KEY = 'sl.settings';
+  const STATS_KEY = 'sl.stats';
+
+  const PILLARS = [
+    { id: 'click', title: 'What you click', hint: 'links · buttons · downloads' },
+    { id: 'land',  title: 'Where you land', hint: 'redirects · sites · tabs' },
+    { id: 'share', title: 'What you share', hint: 'forms · files' },
+    { id: 'yours', title: 'What\u2019s yours', hint: 'cookies · camera · mic' }
+  ];
+
+  /* part: which guide part delivers the module — used for the
+     "not fake" rule: no toggle is shown as usable before its
+     module exists. Update BUILT as you complete parts. */
+  const MODULES = [
+    { id: 'link-sniper',        pillar: 'click', name: 'Link Sniper',            desc: 'Previews where a link really goes before you click.', part: 1, stats: 'linkSniper' },
+    { id: 'fake-download',      pillar: 'click', name: 'Fake Download Button',   desc: 'Flags decoy download buttons next to real ones.', part: 6 },
+    { id: 'ghost-click',        pillar: 'click', name: 'Ghost Click Blocker',    desc: 'Neutralizes invisible overlays that hijack clicks.', part: 5 },
+    { id: 'redirect-detective', pillar: 'land',  name: 'Redirect Detective',     desc: 'Unrolls redirect chains to the final stop.', part: 2 },
+    { id: 'trust-badge',        pillar: 'land',  name: 'Trust Badge',            desc: 'Checks site claims against what the browser knows.', part: 3 },
+    { id: 'tab-guard',          pillar: 'land',  name: 'Tab Guard',              desc: 'Quarantines runaway pop-ups and link bursts.', part: 8 },
+    { id: 'form-guardian',      pillar: 'share', name: 'Form Guardian',          desc: 'Warns before passwords leave for the wrong site.', part: 4 },
+    { id: 'download-guard',     pillar: 'share', name: 'Download Guard',         desc: 'Sniffs what a downloaded file really is.', part: 7 },
+    { id: 'cookie-tamer',       pillar: 'yours', name: 'Cookie Tamer',           desc: 'Points out consent walls, keeps login cookies tidy.', part: 9 },
+    { id: 'media-indicator',    pillar: 'yours', name: 'Webcam & Mic Indicator', desc: 'Lights up when a site uses camera or mic.', part: 10 }
+  ];
+  const BUILT = { 'link-sniper': true };
+
+  let settings = { modules: {} };
+  let activeTab = null;
+  let pageHost = '';
+
+  /* ---------------- helpers ---------------- */
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
   }
-  function eyeIcon() {
-    return svgWrap('<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"' +
-      ' fill="none" stroke="currentColor" stroke-width="1.8"/>' +
-      '<circle cx="12" cy="12" r="2.6" fill="currentColor"/>');
-  }
-  function chainIcon() {
-    return svgWrap('<path d="M9 15l6-6M8 12l-2 2a3 3 0 004 4l2-2' +
-      'M16 12l2-2a3 3 0 00-4-4l-2 2" fill="none" stroke="currentColor"' +
-      ' stroke-width="1.8"/>');
-  }
-  function sealIcon() {
-    return svgWrap('<path d="M12 3l2.5 2 3 .5.5 3L20 12l-2 2.5-.5 3-3 .5' +
-      '-2.5 2-2.5-2-3-.5-.5-3L4 12l2-2.5.5-3 3-.5z" fill="none" stroke=' +
-      '"currentColor" stroke-width="1.6"/><path d="M9 12l2 2 4-4" fill=' +
-      '"none" stroke="currentColor" stroke-width="1.8"/>');
-  }
-  function formIcon() {
-    return svgWrap('<rect x="4" y="6" width="16" height="12" rx="2" fill=' +
-      '"none" stroke="currentColor" stroke-width="1.8"/><path d="M7 10h10' +
-      'M7 14h6" stroke="currentColor" stroke-width="1.8"/>');
-  }
-  function ghostIcon() {
-    return svgWrap('<rect x="4" y="4" width="16" height="16" rx="3" fill=' +
-      '"none" stroke="currentColor" stroke-width="1.8" stroke-dasharray=' +
-      '"3 2"/>');
-  }
-  function dlIcon() {
-    return svgWrap('<path d="M12 4v10m0 0l-4-4m4 4l4-4M5 19h14" fill=' +
-      '"none" stroke="currentColor" stroke-width="1.8"/>');
-  }
-  function shieldIcon() {
-    return svgWrap('<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" fill=' +
-      '"none" stroke="currentColor" stroke-width="1.8"/><path d="M12 9v4" ' +
-      'stroke="currentColor" stroke-width="1.8"/>');
-  }
-  function tabsIcon() {
-    return svgWrap('<rect x="3" y="7" width="18" height="13" rx="2" fill=' +
-      '"none" stroke="currentColor" stroke-width="1.8"/><path d="M3 7l3-4h8' +
-      'l3 4" fill="none" stroke="currentColor" stroke-width="1.8"/>');
-  }
-  function cookieIcon() {
-    return svgWrap('<circle cx="12" cy="12" r="8" fill="none" stroke=' +
-      '"currentColor" stroke-width="1.8"/><circle cx="10" cy="10" r="1.2"' +
-      ' fill="currentColor"/><circle cx="14" cy="13" r="1.2" fill=' +
-      '"currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/>');
-  }
-  function camIcon() {
-    return svgWrap('<rect x="3" y="7" width="12" height="10" rx="2" fill=' +
-      '"none" stroke="currentColor" stroke-width="1.8"/><path d="M15 11l6-' +
-      '3v8l-6-3z" fill="none" stroke="currentColor" stroke-width="1.8"/>');
-  }
-  async function init() {
-    const [tab] = await chrome.tabs.query({ active: true,
-                                            currentWindow: true });
-    state.tabId = tab ? tab.id : null;
-    const res = await send('core', 'getSnapshot', { tabId: state.tabId });
-    state.snapshot = res.ok ? res.data : null;
-    state.settings = state.snapshot && state.snapshot.settings;
-    renderSite();
-    renderPillars();
-    renderGlobal();
-    chrome.storage.onChanged.addListener(onStorage);
-  }
-  function onStorage(changes, area) {
-    if (area === 'local' && changes['sl.settings']) {
-      state.settings = changes['sl.settings'].newValue;
-      renderPillars();
-      renderGlobal();
+
+  async function getSettings() {
+    if (SL.Settings && typeof SL.Settings.get === 'function') {
+      try { return await SL.Settings.get(); } catch (_) { /* fall through */ }
     }
-    if (area === 'session' && changes['sl.status']) {
-      // DEVIATION from guide Part 0: guard null snapshot (guide's own
-      // Part 11 popup.js adds the same guard); without it a failed
-      // getSnapshot + later status update threw on null.
-      if (state.snapshot) state.snapshot.statusLines =
-        (changes['sl.status'].newValue || {})[state.tabId] || {};
-      renderPillars();
+    return { pausedAll: false, modules: {}, siteDisabled: {} };
+  }
+
+  function moduleOn(id) {
+    if (SL.Settings && typeof SL.Settings.isModuleOn === 'function') {
+      try { return SL.Settings.isModuleOn(settings, id, pageHost); } catch (_) { return false; }
     }
+    if (settings.pausedAll === true) return false;
+    return !settings.modules || settings.modules[id] !== false;
   }
-  function renderGlobal() {
-    const on = !!(state.settings && state.settings.globalEnabled !== false);
-    $('slp-global').checked = on;
-    $('slp-paused').hidden = on;
+
+  /* Defensive write: works with set(object), set(key, value), or neither. */
+  async function persistSettings(next) {
+    if (SL.Settings && typeof SL.Settings.set === 'function') {
+      try { await SL.Settings.set(next); return; } catch (e) { /* try next shape */ }
+      try { await SL.Settings.set(SETTINGS_KEY, next); return; } catch (e) { /* fall through */ }
+    }
+    try { await chrome.storage.local.set({ [SETTINGS_KEY]: next }); }
+    catch (e) { console.warn('[sl:popup] could not save settings', e); }
   }
+
+  async function setModuleOn(id, on) {
+    const s = await getSettings();
+    const target = (s.modules && typeof s.modules === 'object') ? s.modules : s;
+    target[id] = on;
+    await persistSettings(s);
+    settings = await getSettings();
+    syncRowStates();
+  }
+
+  /* ---------------- rendering ---------------- */
   function renderSite() {
-    const snap = state.snapshot;
-    const isHttp = snap && /^https?:/i.test(snap.url || '');
-    $('slp-site').hidden = !isHttp;
-    $('slp-empty').hidden = !!isHttp;
-    if (!isHttp) return;
-    $('slp-host').textContent = snap.host || '(this page)';
-    const holder = $('slp-verdict');
+    const hostEl = document.getElementById('slSiteHost');
+    const noteEl = document.getElementById('slSiteNote');
+    let host = '';
+    try { host = activeTab && activeTab.url ? new URL(activeTab.url).hostname : ''; } catch (_) {}
+    pageHost = host;
+    hostEl.textContent = host || 'No site access here';
+    hostEl.title = (activeTab && activeTab.url) || '';
+    let note = 'watching';
+    if (!host) note = 'internal page';
+    else if (settings.pausedAll === true) note = 'paused';
+    else if (!moduleOn('link-sniper')) note = 'off here';
+    noteEl.textContent = note;
+  }
+
+  async function renderVerdict() {
+    const holder = document.getElementById('slVerdict');
     holder.textContent = '';
-    if (snap.pageVerdict) {
-      const v = snap.pageVerdict;
-      const pill = SLVerdict.pill(v.verdict,
-        v.verdict === 'CLEAR' ? 'OK' : 'Take a look');
-      if (v.reasons && v.reasons.length) {
-        pill.title = v.reasons.join(' ');
-      }
-      holder.appendChild(pill);
+    const strip = el('div', 'sl-vstrip');
+    const text = el('div', 'sl-vstrip__text');
+
+    let live = null;
+    if (activeTab && activeTab.id != null && moduleOn('link-sniper') && pageHost) {
+      try {
+        live = await chrome.tabs.sendMessage(activeTab.id, {
+          module: 'link-sniper', type: 'getPageVerdict'
+        });
+      } catch (_) { live = null; }
     }
-    updateSafeModeButton();
-  }
-  function updateSafeModeButton() {
-    const btn = $('slp-safemode');
-    const on = !!(state.snapshot && state.snapshot.safeModeOn);
-    btn.textContent = on ? 'Safe Mode is ON - unfreeze' : 'Safe Mode this tab';
-    btn.classList.toggle('sl-btn--primary', on);
-  }
-  function renderPillars() {
-    const nav = $('slp-pillars');
-    nav.textContent = '';
-    const collapsed = {};
-    SL.Registry.PILLARS.forEach((pillar, idx) => {
-      const section = document.createElement('section');
-      section.className = 'sl-pillar';
-      section.dataset.collapsed = idx > 0 ? 'true' : 'false';
-      const head = document.createElement('button');
-      head.className = 'slp-pillar__head';
-      head.type = 'button';
-      head.setAttribute('aria-expanded', idx > 0 ? 'false' : 'true');
-      head.innerHTML = '<span>' + pillar.name + '</span>' +
-        '<svg class="slp-pillar__chev" viewBox="0 0 24 24" width="12" ' +
-        'height="12" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" ' +
-        'stroke="currentColor" stroke-width="2"/></svg>';
-      head.addEventListener('click', () => {
-        const now = section.dataset.collapsed !== 'true';
-        section.dataset.collapsed = String(now);
-        head.setAttribute('aria-expanded', String(!now));
-        collapsed[pillar.id] = now;
-      });
-      section.appendChild(head);
-      const rows = document.createElement('div');
-      rows.className = 'slp-pillar__rows';
-      for (const mod of SL.Registry.MODULES) {
-        if (mod.pillar !== pillar.id) continue;
-        rows.appendChild(makeRow(mod));
-      }
-      section.appendChild(rows);
-      nav.appendChild(section);
-    });
-  }
-  function makeRow(mod) {
-    const row = document.createElement('div');
-    row.className = 'sl-row';
-    row.dataset.module = mod.id;
-    const icon = document.createElement('div');
-    icon.className = 'sl-row__icon';
-    icon.innerHTML = ICONS[mod.id] || eyeIcon();
-    row.appendChild(icon);
-    const body = document.createElement('div');
-    body.className = 'sl-row__body';
-    const name = document.createElement('div');
-    name.className = 'sl-row__name';
-    name.textContent = mod.name;
-    if (mod.devOnly) {
-      const tag = document.createElement('span');
-      tag.className = 'sl-row__dev-tag';
-      tag.textContent = 'DEV';
-      tag.style.marginLeft = '6px';
-      name.appendChild(tag);
+
+    if (settings.pausedAll === true) {
+      strip.appendChild(SLVerdict.pill('NEUTRAL', 'Paused'));
+      text.textContent = 'Everything is paused. Flip the switch below to resume.';
+    } else if (live && live.verdict) {
+      const pill = SLVerdict.pill(live.verdict,
+        live.verdict === 'CLEAR' ? 'All clear' : 'Take a look');
+      pill.title = (live.reasons || []).join(' ');
+      strip.appendChild(pill);
+      text.textContent = live.verdict === 'CLEAR'
+        ? 'Nothing unusual reported on this page.'
+        : ((live.reasons && live.reasons[0]) || 'Something on this page deserves a second look.');
+    } else if (pageHost && !moduleOn('link-sniper')) {
+      strip.appendChild(SLVerdict.pill('NEUTRAL', 'Off'));
+      text.textContent = 'Link Sniper is switched off. Turn it on below to preview links.';
+    } else {
+      strip.appendChild(SLVerdict.pill('NEUTRAL', 'Watching'));
+      text.textContent = pageHost
+        ? 'Hover any link to see where it really goes.'
+        : 'Nothing to watch on browser-internal pages.';
     }
-    const status = document.createElement('div');
-    status.className = 'sl-row__status';
-    status.textContent = statusText(mod.id);
-    body.appendChild(name);
-    body.appendChild(status);
-    row.appendChild(body);
-    const toggle = document.createElement('label');
-    toggle.className = 'sl-toggle';
+    strip.appendChild(text);
+    holder.appendChild(strip);
+  }
+
+  function prettifyId(id) {
+    if (id === 'demo') return 'Part 0 demo module';
+    return id.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  /* Module ids present in settings but not in the registry
+     (e.g. the Part 0 demo) still get an honest row. */
+  function findExtras() {
+    const known = {};
+    MODULES.forEach((m) => { known[m.id] = true; });
+    const mods = (settings && settings.modules) || {};
+    return Object.keys(mods)
+      .filter((id) => !known[id])
+      .map((id) => ({
+        id: id,
+        pillar: 'click',
+        name: prettifyId(id),
+        desc: 'Early scaffold module — safe to switch off.',
+        part: 0,
+        builtin: true
+      }));
+  }
+
+  function buildRow(m) {
+    const row = el('div', 'sl-row');
+    row.dataset.module = m.id;
+
+    const main = el('div', 'sl-row__main');
+    const title = el('div', 'sl-row__title', m.name);
+    const built = m.builtin || BUILT[m.id];
+    if (!built) title.appendChild(el('span', 'sl-chip', 'Part ' + m.part));
+    main.appendChild(title);
+    main.appendChild(el('div', 'sl-row__desc', m.desc));
+    if (m.stats) {
+      const stat = el('div', 'sl-row__stat', 'No links checked yet');
+      stat.id = 'sl-stat-' + m.id;
+      main.appendChild(stat);
+    }
+
+    const label = document.createElement('label');
+    label.className = 'sl-toggle';
     const input = document.createElement('input');
     input.type = 'checkbox';
-    input.setAttribute('aria-label', mod.name + ' on this browser');
-    input.checked = isOn(mod.id);
-    input.addEventListener('change', () => onToggle(mod.id, input.checked,
-                                                    row));
-    const track = document.createElement('span');
-    track.className = 'sl-toggle__track';
-    toggle.appendChild(input);
-    toggle.appendChild(track);
-    row.appendChild(toggle);
-    row.title = mod.blurb;
+    input.dataset.module = m.id;
+    input.checked = moduleOn(m.id);
+    /* Honesty rule: a toggle that does nothing yet is disabled,
+       not fake. Enable it as each part is completed. */
+    input.disabled = !built;
+    input.title = built
+      ? (m.name + ' — switch ' + (input.checked ? 'off' : 'on'))
+      : 'Delivered in Part ' + m.part;
+    const track = el('span', 'sl-toggle__track');
+    track.appendChild(el('span', 'sl-toggle__thumb'));
+    label.appendChild(input);
+    label.appendChild(track);
+
+    row.appendChild(main);
+    row.appendChild(label);
     return row;
   }
-  function isOn(moduleId) {
-    return !!(state.settings &&
-      SL.Settings.isModuleOn(state.settings, moduleId, null));
+
+  function renderModules() {
+    const list = document.getElementById('slModules');
+    list.textContent = '';
+    const extras = findExtras();
+    PILLARS.forEach((p) => {
+      const mods = MODULES.filter((m) => m.pillar === p.id)
+        .concat(extras.filter((m) => m.pillar === p.id));
+      if (!mods.length) return;
+      const group = document.createElement('details');
+      group.className = 'sl-group';
+      group.open = true;
+      const sum = el('summary');
+      sum.appendChild(el('span', null, p.title));
+      sum.appendChild(el('span', 'sl-group__hint', p.hint));
+      group.appendChild(sum);
+      const rows = el('div', 'sl-group__rows');
+      mods.forEach((m) => rows.appendChild(buildRow(m)));
+      group.appendChild(rows);
+      list.appendChild(group);
+    });
   }
-  function statusText(moduleId) {
-    const lines = state.snapshot && state.snapshot.statusLines;
-    const line = lines && lines[moduleId];
-    if (line) return line;
-    return isOn(moduleId) ? 'Idle' : 'Off';
-  }
-  async function onToggle(moduleId, enabled, rowEl) {
-    rowEl.classList.add('sl-row--syncing');
-    const statusEl = rowEl.querySelector('.sl-row__status');
-    if (statusEl) statusEl.textContent = 'syncing';
-    await send('core', 'setModuleEnabled', { moduleId, enabled });
-    // settings change event clears the syncing state via renderPillars()
-  }
-  $('slp-global').addEventListener('change', async (e) => {
-    await send('core', 'setGlobalEnabled', { enabled: e.target.checked });
-  });
-  $('slp-safemode').addEventListener('click', async () => {
-    const on = !(state.snapshot && state.snapshot.safeModeOn);
-    await send('core', 'safeMode', { tabId: state.tabId, on });
-    state.snapshot.safeModeOn = on;
+
+  function syncRowStates() {
+    document.querySelectorAll('input[data-module]').forEach((input) => {
+      input.checked = moduleOn(input.dataset.module);
+    });
+    const pause = document.getElementById('slPauseAll');
+    if (pause) pause.checked = settings.pausedAll === true;
     renderSite();
-  });
-  $('slp-options').addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
-  });
-  $('slp-dashboard').addEventListener('click', () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL('/ui/dashboard.html') });
-  });
-  init();
+  }
+
+  /* ---------------- stats (lifetime counters) ---------------- */
+  function applyStats(data) {
+    const node = document.getElementById('sl-stat-link-sniper');
+    if (!node) return;
+    const s = data && data.linkSniper;
+    if (s && (Number(s.scans) || 0) > 0) {
+      node.textContent = Number(s.scans).toLocaleString() + ' links checked \u00B7 ' +
+        Number(s.flagged || 0).toLocaleString() + ' flagged';
+    } else {
+      node.textContent = 'No links checked yet';
+    }
+  }
+
+  async function renderStats() {
+    try {
+      const stored = await chrome.storage.local.get(STATS_KEY);
+      applyStats(stored && stored[STATS_KEY]);
+    } catch (_) { /* ignore */ }
+  }
+
+  /* ---------------- events ---------------- */
+  function bindEvents() {
+    document.getElementById('slModules').addEventListener('change', (e) => {
+      const input = e.target.closest('input[data-module]');
+      if (!input || input.disabled) return;
+      setModuleOn(input.dataset.module, input.checked);
+    });
+
+    document.getElementById('slPauseAll').addEventListener('change', async (e) => {
+      const s = await getSettings();
+      s.pausedAll = e.target.checked;
+      await persistSettings(s);
+      settings = await getSettings();
+      syncRowStates();
+      renderVerdict();
+    });
+
+    document.getElementById('slOptions').addEventListener('click', () => {
+      try {
+        const p = chrome.runtime.openOptionsPage();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      } catch (_) { /* no options page declared */ }
+    });
+
+    try {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local') return;
+        if (changes[STATS_KEY]) applyStats(changes[STATS_KEY].newValue);
+        if (changes[SETTINGS_KEY] && changes[SETTINGS_KEY].newValue) {
+          settings = changes[SETTINGS_KEY].newValue;
+          syncRowStates();
+        }
+      });
+    } catch (_) { /* ignore */ }
+
+    if (SL.Settings && typeof SL.Settings.subscribe === 'function') {
+      try {
+        SL.Settings.subscribe(() => { getSettings().then((s) => { settings = s; syncRowStates(); }); });
+      } catch (_) { /* ignore */ }
+    }
+  }
+
+  /* ---------------- boot ---------------- */
+  async function init() {
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      activeTab = tabs && tabs[0];
+    } catch (_) { activeTab = null; }
+    settings = await getSettings();
+    renderSite();
+    renderModules();
+    await renderVerdict();
+    renderStats();
+    bindEvents();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 })();

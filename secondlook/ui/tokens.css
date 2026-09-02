@@ -1,59 +1,97 @@
-/* ui/tokens.css - design tokens; loaded by extension pages AND injected
- * into pages. Page usage: everything sits under a .sl-root wrapper. */
-:root, .sl-root {
-  --sl-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  /* ink scale (light mode) - slate ramp for stronger AA contrast */
-  --sl-ink: #0f172a;          /* primary text */
-  --sl-ink-2: #334155;        /* secondary text */
-  --sl-ink-3: #64748b;        /* muted / meta */
-  --sl-line: #cbd5e1;         /* hairlines, borders */
-  --sl-surface: #ffffff;      /* cards, toasts */
-  --sl-surface-2: #f1f5f9;    /* page-ish fills */
-  --sl-surface-3: #e2e8f0;    /* header / footer fills */
-  --sl-focus: #2563eb;        /* focus ring */
-  /* verdict colors - AA on --sl-surface in light mode */
-  --sl-ok: #15803d;           /* CLEAR */
-  --sl-ok-bg: #dcfce7;
-  --sl-warn: #b45309;         /* SECOND LOOK */
-  --sl-warn-bg: #fef3c7;
-  --sl-danger: #b91c1c;       /* INTERCEPTED */
-  --sl-danger-bg: #fee2e2;
-  /* spacing scale (8px base) */
-  --sl-s1: 4px;  --sl-s2: 8px;  --sl-s3: 12px;
-  --sl-s4: 16px; --sl-s5: 24px; --sl-s6: 32px;
-  /* type scale */
-  --sl-fz-tiny: 11px; --sl-fz-small: 12px;
-  --sl-fz-base: 14px; --sl-fz-title: 16px;
-  /* radii and motion */
-  --sl-r-lg: 12px; --sl-r-md: 8px; --sl-r-pill: 999px;
-  --sl-t-fast: 150ms;
-  /* z-index scale - our UI always outranks page UI */
-  --sl-z-chip: 8000;
-  --sl-z-banner: 9000;
-  --sl-z-toast: 9500;
-  --sl-z-modal: 10000;
-  --sl-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+/* ============================================================
+   SecondLook — ui/tokens.css  (v1.2 — readability palette)
+   Higher-contrast neutrals, calmer surfaces, AA-compliant
+   verdict colors in both light and dark. One source of truth.
+   ============================================================ */
+
+:root {
+  /* ---- Type ---- */
+  --sl-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --sl-font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  --sl-fs-micro: 10.5px;
+  --sl-fs-small: 11.5px;
+  --sl-fs-secondary: 12.5px;
+  --sl-fs-base: 13px;
+  --sl-fs-heading: 14px;
+  --sl-fs-title: 15.5px;
+  --sl-lh: 1.45;
+
+  /* ---- Space (8px grid, 4px half-steps) ---- */
+  --sl-space-1: 4px;
+  --sl-space-2: 8px;
+  --sl-space-3: 12px;
+  --sl-space-4: 16px;
+  --sl-space-5: 20px;
+  --sl-radius: 12px;
+  --sl-radius-sm: 8px;
+
+  /* ---- Motion ---- */
+  --sl-motion: 150ms cubic-bezier(.2, .7, .3, 1);
 }
+
+/* ---------- Light ---------- */
+:root {
+  color-scheme: light;
+  --sl-bg: #F2F5F8;
+  --sl-surface: #FFFFFF;
+  --sl-surface-2: #EBEFF3;
+  --sl-ink: #18212C;
+  --sl-ink-2: #47535F;
+  --sl-ink-3: #68737F;
+  --sl-border: #DEE4EA;
+  --sl-border-strong: #C6CFD9;
+  --sl-accent: #1D5FCC;
+  --sl-accent-hover: #1749A8;
+  --sl-accent-ink: #FFFFFF;
+  --sl-accent-soft: #E5EEFC;
+  --sl-ok-ink: #0F6B3E;
+  --sl-ok-bg: #E3F4E9;
+  --sl-ok-border: #BCE0CB;
+  --sl-ok-dot: #1E9E5C;
+  --sl-warn-ink: #7A4B00;
+  --sl-warn-bg: #FFF2D4;
+  --sl-warn-border: #EBD4A0;
+  --sl-warn-dot: #D98A09;
+  --sl-danger-ink: #9E2B1E;
+  --sl-danger-bg: #FCEBE8;
+  --sl-danger-border: #F1C5BD;
+  --sl-danger-dot: #D0342C;
+  --sl-shadow: 0 10px 30px rgba(23, 32, 44, .10);
+  --sl-focus: 0 0 0 2px var(--sl-surface), 0 0 0 4px var(--sl-accent);
+}
+
+/* ---------- Dark ---------- */
 @media (prefers-color-scheme: dark) {
-  :root, .sl-root {
-    --sl-ink: #e2e8f0;
-    --sl-ink-2: #94a3b8;
-    --sl-ink-3: #64748b;
-    --sl-line: #334155;
-    --sl-surface: #0f172a;
-    --sl-surface-2: #1e293b;
-    --sl-surface-3: #334155;
-    --sl-focus: #60a5fa;
-    --sl-ok: #4ade80;      --sl-ok-bg: rgba(22, 101, 52, 0.35);
-    --sl-warn: #fbbf24;    --sl-warn-bg: rgba(120, 53, 15, 0.35);
-    --sl-danger: #f87171;  --sl-danger-bg: rgba(127, 29, 29, 0.4);
-    --sl-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  :root {
+    color-scheme: dark;
+    --sl-bg: #101318;
+    --sl-surface: #181C23;
+    --sl-surface-2: #20262F;
+    --sl-ink: #E8ECF1;
+    --sl-ink-2: #ADB8C3;
+    --sl-ink-3: #87929E;
+    --sl-border: #262C36;
+    --sl-border-strong: #3A434F;
+    --sl-accent: #7AA7FF;
+    --sl-accent-hover: #9BC0FF;
+    --sl-accent-ink: #0D1420;
+    --sl-accent-soft: #1C2942;
+    --sl-ok-ink: #79D9A2;
+    --sl-ok-bg: #13291D;
+    --sl-ok-border: #235C3B;
+    --sl-ok-dot: #3FBE7A;
+    --sl-warn-ink: #EFC169;
+    --sl-warn-bg: #2E2612;
+    --sl-warn-border: #6B5420;
+    --sl-warn-dot: #E8A93D;
+    --sl-danger-ink: #F58C80;
+    --sl-danger-bg: #331D1A;
+    --sl-danger-border: #6E332C;
+    --sl-danger-dot: #E85C4F;
+    --sl-shadow: 0 10px 30px rgba(0, 0, 0, .45);
   }
 }
-/* Motion opt-out: animations become instant, pulses become static. */
+
 @media (prefers-reduced-motion: reduce) {
-  .sl-root *, body.sl-page * {
-    animation-duration: 0.001s !important;
-    transition-duration: 0.001s !important;
-  }
+  :root { --sl-motion: 0ms; }
 }
