@@ -1,55 +1,46 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SecondLook</title>
   <link rel="stylesheet" href="tokens.css">
-  <link rel="stylesheet" href="components.css">
   <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="../shared/sl-verdict.css">
 </head>
-<body class="sl-popup">
-
-  <header class="sl-popup__header">
-    <div class="sl-brand">
-      <span class="sl-brand__mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
-             stroke="currentColor" stroke-width="1.8"
-             stroke-linecap="round" stroke-linejoin="round">
-          <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/>
-          <circle cx="12" cy="12" r="2.6"/>
-        </svg>
-      </span>
-      <div>
-        <span class="sl-brand__name">SecondLook</span>
-        <span class="sl-brand__tag">A second look, not a lecture</span>
+<body>
+  <header class="head">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">SL</span>
+      <div class="brand-text">
+        <h1>SecondLook</h1>
+        <p class="tag">Only what deserves a second look.</p>
       </div>
     </div>
+    <div id="pageVerdict" class="page-verdict" aria-live="polite"></div>
   </header>
 
-  <div class="sl-popup__site">
-    <span class="sl-popup__site-label">Site</span>
-    <span class="sl-popup__site-host" id="slSiteHost">—</span>
-    <span class="sl-popup__site-note" id="slSiteNote"></span>
-  </div>
+  <section id="routePanel" class="route" hidden>
+    <h2>How you got here</h2>
+    <ol id="routeHops" class="route-hops"></ol>
+    <ul id="routeReasons" class="route-reasons"></ul>
+  </section>
 
-  <section class="sl-popup__verdict" id="slVerdict" aria-live="polite"></section>
+  <main class="modules">
+    <h2>Modules</h2>
+    <ul id="moduleList" class="module-list"></ul>
+  </main>
 
-  <main class="sl-popup__modules" id="slModules"></main>
+  <p id="statsRow" class="stats" hidden></p>
 
-  <footer class="sl-popup__footer">
-    <label class="sl-pause">
-      <span class="sl-toggle">
-        <input type="checkbox" id="slPauseAll">
-        <span class="sl-toggle__track"><span class="sl-toggle__thumb"></span></span>
-      </span>
-      <span class="sl-pause__label">Pause everything</span>
-    </label>
-    <button type="button" class="sl-linklike" id="slOptions">Settings</button>
+  <footer class="foot">
+    <button id="resetDefaults" class="ghost" type="button">Restore defaults</button>
+    <span id="verTag" class="ver"></span>
   </footer>
 
   <script src="../shared/settings.js"></script>
-  <script src="verdict-card.js"></script>
+  <script src="../engine/verdict-engine.js"></script>
+  <script src="../shared/sl-verdict.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

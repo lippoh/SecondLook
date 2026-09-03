@@ -1,0 +1,28 @@
+/* SecondLook — Link Sniper bubble (registered with the module). */
+.sl-ls-pop{
+  position:fixed;z-index:2147483646;
+  width:max-content;max-width:min(380px,calc(100vw - 24px));
+  pointer-events:none;
+}
+.sl-ls-mini{pointer-events:none}
+.sl-ls-box{
+  pointer-events:auto;
+  background:rgba(13,18,24,.97);color:#e8edf2;
+  border:1px solid #2a3542;border-radius:12px;
+  box-shadow:0 10px 32px rgba(0,0,0,.45);
+  padding:10px 12px;
+  font:12px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+.sl-ls-pinned .sl-ls-box{border-color:#ffb454;outline:1px solid rgba(255,180,84,.5)}
+.sl-ls-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.sl-ls-signals{font:700 10px/1 system-ui,sans-serif;letter-spacing:.06em;
+  text-transform:uppercase;color:#9aa7b4}
+.sl-ls-reasons{margin:0 0 8px;padding:0;list-style:none}
+.sl-ls-reasons li{position:relative;padding-left:15px;margin:3px 0;color:#ffdf9e;overflow-wrap:break-word}
+.sl-ls-reasons li::before{content:'';position:absolute;left:2px;top:7px;width:6px;height:6px;border-radius:50%;background:#ffb454}
+.sl-ls-reasons .sl-ls-more{color:#8b98a5;padding-left:0;font-style:italic}
+.sl-ls-info{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;
+  margin:0 0 8px;padding-top:8px;border-top:1px solid #232d39;font-size:11.5px}
+.sl-ls-info dt{color:#8b98a5;font-weight:600;white-space:nowrap}
+.sl-ls-info dd{margin:0;color:#c7d2dc;overflow-wrap:break-word}
+.sl-ls-hint{font-size:10.5px;color:#77848f;padding-top:6px;border-top:1px solid #232d39}

@@ -1,35 +1,24 @@
 {
   "manifest_version": 3,
   "name": "SecondLook",
-  "version": "1.0.0",
-  "description": "Quality-of-life tools that quietly watch your back. Local-only, zero telemetry, every warning undoable.",
+  "version": "0.4.0",
+  "description": "We don't tell you that the internet is dangerous. We tell you when something deserves a second look.",
   "minimum_chrome_version": "116",
+  "permissions": [
+    "storage",
+    "scripting",
+    "tabs",
+    "alarms",
+    "webRequest",
+    "declarativeNetRequest",
+    "notifications"
+  ],
+  "host_permissions": ["<all_urls>"],
   "background": {
-    "service_worker": "background/service-worker.js"
+    "service_worker": "background/bootstrap.js"
   },
   "action": {
-    "default_popup": "ui/popup.html",
     "default_title": "SecondLook",
-    "default_icon": {
-      "16": "assets/icons/icon-16.png",
-      "32": "assets/icons/icon-32.png",
-      "48": "assets/icons/icon-48.png",
-      "128": "assets/icons/icon-128.png"
-    }
-  },
-  "options_page": "ui/popup.html",
-  "icons": {
-    "16": "assets/icons/icon-16.png",
-    "32": "assets/icons/icon-32.png",
-    "48": "assets/icons/icon-48.png",
-    "128": "assets/icons/icon-128.png"
-  },
-  "permissions": [
-    "storage", "tabs", "scripting", "downloads", "cookies",
-    "alarms", "contextMenus", "tabGroups",
-    "declarativeNetRequest", "webRequest"
-  ],
-  "host_permissions": ["http://*/*", "https://*/*"],
-  "content_scripts": [],
-  "web_accessible_resources": []
+    "default_popup": "ui/popup.html"
+  }
 }

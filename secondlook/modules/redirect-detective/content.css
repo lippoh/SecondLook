@@ -1,0 +1,34 @@
+/* SecondLook — Redirect Detective route card (registered with the module). */
+#sl-rd-card{
+  position:fixed;left:16px;bottom:16px;z-index:2147483646;
+  max-width:min(360px,calc(100vw - 32px));
+  background:rgba(13,18,24,.96);color:#e8edf2;
+  border:1px solid #2a3542;border-radius:12px;
+  box-shadow:0 10px 32px rgba(0,0,0,.45);
+  font:12px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:10px 12px;
+}
+.sl-rd-warn{border-color:rgba(255,180,84,.65)}
+.sl-rd-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.sl-rd-dot{width:9px;height:9px;border-radius:50%;background:#5a7d9a;flex:0 0 auto}
+.sl-rd-warn .sl-rd-dot{background:#ffb454}
+.sl-rd-head strong{flex:1 1 auto;font-size:12.5px}
+.sl-rd-close{
+  flex:0 0 auto;border:0;background:transparent;color:#9aa7b4;cursor:pointer;
+  font:700 14px/1 system-ui,sans-serif;padding:2px 4px;border-radius:6px;
+}
+.sl-rd-close:hover{color:#e8edf2;background:#232d39}
+.sl-rd-route{
+  color:#c7d2dc;word-break:break-word;
+  font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;font-size:11.5px;
+}
+.sl-rd-why{margin:6px 0 0;padding-left:16px;color:#ffdf9e}
+.sl-rd-why li{margin:2px 0}
+.sl-rd-foot{margin-top:6px}
+.sl-rd-more{
+  border:0;background:transparent;color:#8fb8d8;cursor:pointer;padding:0;
+  font:600 11px/1 system-ui,sans-serif;
+}
+.sl-rd-more:hover{text-decoration:underline}
+.sl-rd-full{margin:6px 0 0;padding-left:18px;color:#9aa7b4;
+  font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;font-size:10.5px;word-break:break-all}

@@ -1,0 +1,17 @@
+/* SecondLook — verdict chip styles (pages + popup). */
+.sl-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  font:600 12px/1.25 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:4px 10px;border-radius:999px;border:1px solid transparent;
+  background:rgba(13,18,24,.92);color:#e8edf2;
+  box-shadow:0 2px 10px rgba(0,0,0,.35);
+  white-space:nowrap;pointer-events:none;-webkit-user-select:none;user-select:none;
+}
+.sl-pill-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.sl-v-clear .sl-pill-dot{background:#34d399}
+.sl-v-clear{border-color:rgba(52,211,153,.55)}
+.sl-v-warn .sl-pill-dot{background:#ffb454}
+.sl-v-warn{border-color:rgba(255,180,84,.7)}
+.sl-v-bad .sl-pill-dot{background:#f87171}
+.sl-v-bad{border-color:rgba(248,113,113,.75)}
+.sl-pill-lg{font-size:13px;padding:6px 12px}

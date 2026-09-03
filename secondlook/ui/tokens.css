@@ -1,97 +1,29 @@
-/* ============================================================
-   SecondLook — ui/tokens.css  (v1.2 — readability palette)
-   Higher-contrast neutrals, calmer surfaces, AA-compliant
-   verdict colors in both light and dark. One source of truth.
-   ============================================================ */
-
-:root {
-  /* ---- Type ---- */
-  --sl-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --sl-font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
-  --sl-fs-micro: 10.5px;
-  --sl-fs-small: 11.5px;
-  --sl-fs-secondary: 12.5px;
-  --sl-fs-base: 13px;
-  --sl-fs-heading: 14px;
-  --sl-fs-title: 15.5px;
-  --sl-lh: 1.45;
-
-  /* ---- Space (8px grid, 4px half-steps) ---- */
-  --sl-space-1: 4px;
-  --sl-space-2: 8px;
-  --sl-space-3: 12px;
-  --sl-space-4: 16px;
-  --sl-space-5: 20px;
-  --sl-radius: 12px;
-  --sl-radius-sm: 8px;
-
-  /* ---- Motion ---- */
-  --sl-motion: 150ms cubic-bezier(.2, .7, .3, 1);
+/* SecondLook — design tokens (readability pass: AA contrast in both themes). */
+:root{
+  --sl-bg:#f6f8fa;
+  --sl-surface:#ffffff;
+  --sl-surface-2:#eef2f6;
+  --sl-text:#16222d;
+  --sl-text-muted:#4f5f6d;
+  --sl-border:#d5dfe8;
+  --sl-accent:#b45309;          /* amber, 4.6:1 on white */
+  --sl-clear:#157347;           /* green, 4.6:1 on white */
+  --sl-bad:#b42318;             /* red, 5:1 on white */
+  --sl-focus:#b45309;
+  --sl-radius:10px;
+  --sl-font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
-
-/* ---------- Light ---------- */
-:root {
-  color-scheme: light;
-  --sl-bg: #F2F5F8;
-  --sl-surface: #FFFFFF;
-  --sl-surface-2: #EBEFF3;
-  --sl-ink: #18212C;
-  --sl-ink-2: #47535F;
-  --sl-ink-3: #68737F;
-  --sl-border: #DEE4EA;
-  --sl-border-strong: #C6CFD9;
-  --sl-accent: #1D5FCC;
-  --sl-accent-hover: #1749A8;
-  --sl-accent-ink: #FFFFFF;
-  --sl-accent-soft: #E5EEFC;
-  --sl-ok-ink: #0F6B3E;
-  --sl-ok-bg: #E3F4E9;
-  --sl-ok-border: #BCE0CB;
-  --sl-ok-dot: #1E9E5C;
-  --sl-warn-ink: #7A4B00;
-  --sl-warn-bg: #FFF2D4;
-  --sl-warn-border: #EBD4A0;
-  --sl-warn-dot: #D98A09;
-  --sl-danger-ink: #9E2B1E;
-  --sl-danger-bg: #FCEBE8;
-  --sl-danger-border: #F1C5BD;
-  --sl-danger-dot: #D0342C;
-  --sl-shadow: 0 10px 30px rgba(23, 32, 44, .10);
-  --sl-focus: 0 0 0 2px var(--sl-surface), 0 0 0 4px var(--sl-accent);
-}
-
-/* ---------- Dark ---------- */
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --sl-bg: #101318;
-    --sl-surface: #181C23;
-    --sl-surface-2: #20262F;
-    --sl-ink: #E8ECF1;
-    --sl-ink-2: #ADB8C3;
-    --sl-ink-3: #87929E;
-    --sl-border: #262C36;
-    --sl-border-strong: #3A434F;
-    --sl-accent: #7AA7FF;
-    --sl-accent-hover: #9BC0FF;
-    --sl-accent-ink: #0D1420;
-    --sl-accent-soft: #1C2942;
-    --sl-ok-ink: #79D9A2;
-    --sl-ok-bg: #13291D;
-    --sl-ok-border: #235C3B;
-    --sl-ok-dot: #3FBE7A;
-    --sl-warn-ink: #EFC169;
-    --sl-warn-bg: #2E2612;
-    --sl-warn-border: #6B5420;
-    --sl-warn-dot: #E8A93D;
-    --sl-danger-ink: #F58C80;
-    --sl-danger-bg: #331D1A;
-    --sl-danger-border: #6E332C;
-    --sl-danger-dot: #E85C4F;
-    --sl-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+@media (prefers-color-scheme:dark){
+  :root{
+    --sl-bg:#0f141a;
+    --sl-surface:#171e26;
+    --sl-surface-2:#1f2933;
+    --sl-text:#e9eef3;
+    --sl-text-muted:#9aa7b3;
+    --sl-border:#2a3540;
+    --sl-accent:#ffb454;
+    --sl-clear:#3dd68c;
+    --sl-bad:#f87171;
+    --sl-focus:#ffb454;
   }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root { --sl-motion: 0ms; }
 }
