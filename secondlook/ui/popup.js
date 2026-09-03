@@ -59,6 +59,10 @@
         try {
           await S.setModule(m.id, toggle.checked);
           /* Authoritative re-render arrives via Settings.onChange. */
+          /* Wake the service worker so scripts re-register NOW —
+           * storage events are not a guaranteed SW wake-up. */
+          chrome.runtime.sendMessage({ type: 'SL_SYNC_NOW' },
+            () => void chrome.runtime.lastError);
         } catch (e) {
           toggle.checked = !toggle.checked;
         }

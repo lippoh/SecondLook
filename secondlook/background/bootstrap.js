@@ -2,18 +2,50 @@
  * Owns: script registration sync ("OFF is truly OFF"), the one-time
  * settings migration, and the popup snapshot endpoint.
  *
+ * Hardened: this file can no longer die at the top level.
+ *   - every importScripts is guarded per file: one bad file logs a loud
+ *     error and the rest still run;
+ *   - the settings API is checked before use: a stale shared/settings.js
+ *     produces ONE actionable console message instead of
+ *     "Service worker registration failed. Status code: 15";
+ *   - SL_SYNC_NOW lets the popup wake us for instant re-registration.
+ *
  * This file NEVER writes settings in reaction to a change event — the
  * register/unregister churn is gone by construction.
  */
 'use strict';
 
-importScripts(
+for (const file of [
   '/shared/settings.js',
   '/engine/verdict-engine.js',
   '/modules/redirect-detective/background.js'
-);
+]) {
+  try { importScripts(file); }
+  catch (e) {
+    console.error('[SL] importScripts FAILED for ' + file + ' — ' +
+      ((e && e.message) || e) + '. Fix or restore that file, then reload.');
+  }
+}
 
 const SL = globalThis.SecondLook;
+
+/* ---- settings API guard: a stale file degrades loudly, never fatally */
+const SETTINGS_KEY = (SL.Settings && SL.Settings.KEY) || 'slSettings';
+const REQUIRED_API = ['get', 'set', 'setModule', 'reset', 'defaults',
+                      'migrate', 'isModuleOn', 'moduleMap', 'kebab', 'onChange'];
+const missingApi = SL.Settings
+  ? REQUIRED_API.filter((k) => typeof SL.Settings[k] !== 'function')
+  : ['(shared/settings.js did not load — see the error above)'];
+const SETTINGS_STALE = missingApi.length > 0;
+if (SETTINGS_STALE) {
+  console.error(
+    '[SL] shared/settings.js on disk is the OLD version — missing: ' +
+    missingApi.join(', ') + '.\n' +
+    '    Open shared/settings.js, SELECT ALL, delete, paste the complete v2.1\n' +
+    '    file (first line: "SecondLook — shared/settings.js v2.1"), save, then\n' +
+    '    reload the extension. Running degraded until then.'
+  );
+}
 
 /* Content bundles per implemented module. Anything not listed here is
  * never injected anywhere. CSS is registered with the bundle so page
@@ -98,19 +130,31 @@ async function syncRD() {
   try {
     const s = await SL.Settings.get();
     SL.RD.setEnabled(SL.Settings.isModuleOn(s, 'redirect-detective'));
-  } catch (e) { /* RD stays in its last known state */ }
+  } catch (e) { /* RD stays in its last known state; it also self-syncs */ }
 }
 
 /* Reactions to settings changes: READ ONLY. No writes here, ever. */
-SL.Settings.onChange(() => {
+function onSettingsChanged() {
   requestSync();
   syncRD();
-});
+}
+if (!SETTINGS_STALE) {
+  SL.Settings.onChange(onSettingsChanged);
+} else {
+  /* Fallback for a stale settings.js: listen ourselves, filtered to the
+   * settings key so stats/chain writes can never trigger a re-sync. */
+  try {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes[SETTINGS_KEY]) onSettingsChanged();
+    });
+  } catch (e) { /* no storage events */ }
+}
 
 chrome.runtime.onInstalled.addListener(async (details) => {
-  try {
-    await SL.Settings.migrate();   // one-time clean defaults (schema-gated)
-  } catch (e) { console.warn('[SL] migrate failed:', e && e.message); }
+  if (!SETTINGS_STALE) {
+    try { await SL.Settings.migrate(); }   // one-time clean defaults (schema-gated)
+    catch (e) { console.warn('[SL] migrate failed:', e && e.message); }
+  }
   console.info('[SL] installed/updated:', details && details.reason);
   requestSync();
   syncRD();
@@ -128,6 +172,10 @@ syncRD();
 /* ---- popup endpoint ---- */
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || typeof msg !== 'object') return false;
+  if (msg.type === 'SL_SYNC_NOW') {          // popup ping: re-register now
+    onSettingsChanged();
+    return false;                            // no async response needed
+  }
   if (msg.type !== 'SL_GET_SNAPSHOT') return false;   // RD answers its own types
   handleSnapshot(msg.tabId)
     .then(sendResponse)
@@ -136,7 +184,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 async function handleSnapshot(tabId) {
-  const snap = { pageVerdict: null, chain: null, stats: null, engineVersion: SL.Engine.VERSION };
+  const snap = {
+    pageVerdict: null, chain: null, stats: null,
+    engineVersion: (SL.Engine && SL.Engine.VERSION) || '?'
+  };
   try {
     if (typeof tabId === 'number' && tabId >= 0) {
       const tab = await chrome.tabs.get(tabId);

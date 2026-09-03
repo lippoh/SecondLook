@@ -1,47 +1,84 @@
-/* SecondLook — shared/settings.js
- * The single source of truth for module settings.
+/* SecondLook — shared/settings.js v2.1 (FULL API)
+ * Single source of truth for settings AND the module catalogue.
+ * Loaded in every context:
+ *   - service worker  : importScripts FIRST (bootstrap.js does this)
+ *   - extension pages : <script src="shared/settings.js"> before popup.js
+ *   - content scripts : first file of every registered bundle (read-only
+ *                       there: the self-heal migration only runs where
+ *                       chrome.tabs exists — SW and extension pages)
  *
- * WHERE IT RUNS
- *   - Service worker: importScripts('shared/settings.js') FIRST, before
- *     any module background file.
- *   - Extension pages (popup/options): <script src="shared/settings.js">.
- *   - Content scripts: shared/cs-bridge.js carries an identical twin of
- *     this logic (content scripts cannot importScripts). Keep the twins
- *     in sync when you touch this file.
+ * API: get | set(id,on) | set({patch}) | setModule | reset | defaults |
+ *       migrate | onChange(cb) -> unsubscribe | isModuleOn | moduleMap |
+ *       MODULES | KEY | VERSION | DEFAULTS | kebab | __API
  *
- * THE CONTRACT (this is what stopped toggles from sticking)
- *   1. ONE storage key: 'slSettings' in chrome.storage.local. Nothing
- *      else in the codebase writes that key.
- *   2. Defaults apply at READ time via per-key merge - stored user values
- *      always win. A new module added by an update can never clobber
- *      existing choices.
- *   3. set() is always a read-modify-write MERGE, never a wholesale
- *      replace, and every write goes through one serialized queue, so
- *      two writers can never race each other back to a stale value.
- *   4. Module ids are canonicalized ('redirect-detective',
- *      'redirectDetective', 'Redirect_Detective' are the same switch),
- *      so a spelling drift can never silently kill a module.
- *   5. Implemented modules default ON; unimplemented ones default OFF
- *      (absent from DEFAULTS). A one-time v1 -> v2 migration repairs
- *      profiles whose defaults were flattened by the old bug.
+ * v2.1: an older/partial SecondLook.Settings (the lean v2 file, or this
+ * file pasted after it) is now UPGRADED, not skipped. The old
+ * "if (root.Settings) return" guard let a stale twin silently win when
+ * a file got appended to; every consumer of onChange()/migrate()/MODULES
+ * then died. Now: identical file twice = one copy; stale file = replaced.
+ * VERSION is 3 so profiles that ran the lean v2 file also get the
+ * one-time repair (re-enables the two implemented modules once).
  */
 (() => {
   'use strict';
   const root = (globalThis.SecondLook = globalThis.SecondLook || {});
-  if (root.Settings) return;                       // twin already loaded
+  const API = 2.1;
+  if (root.Settings && root.Settings.__API === API) return;   // dedupe only
 
   const KEY = 'slSettings';
-  const VERSION = 2;
+  const VERSION = 3;
 
-  const DEFAULTS = Object.freeze({
-    v: VERSION,
-    modules: Object.freeze({                       // implemented today -> ON
-      'link-sniper': true,
-      'redirect-detective': true
-    }),
-    hosts: Object.freeze({})                       // host -> { moduleId: false }
-  });
+  /* ---- module catalogue ---------------------------------------------------
+   * The popup renders this top to bottom. Defaults DERIVE from it:
+   * implemented => default ON, unbuilt => default OFF. Shipping a module
+   * = flip implemented AND bump VERSION (the v-gated migration then
+   * re-enables it for existing profiles). Only id + implemented are
+   * load-bearing; name/desc/pillar are presentation. */
+  const MODULES = Object.freeze([
+    { id: 'link-sniper', pillar: 'Links', implemented: true,
+      name: 'Link Sniper',
+      desc: 'Hover any link to see where it really goes before you click.' },
+    { id: 'redirect-detective', pillar: 'Links', implemented: true,
+      name: 'Redirect Detective',
+      desc: 'Traces the route a link takes and flags detours worth a second look.' },
+    { id: 'login-lookout', pillar: 'Logins', implemented: false,
+      name: 'Login Lookout',
+      desc: 'Warns when a login form appears on a domain that mimics a brand.' },
+    { id: 'twin-site-spotter', pillar: 'Logins', implemented: false,
+      name: 'Twin-Site Spotter',
+      desc: 'Spots look-alike and typo-squat domains shadowing the real ones.' },
+    { id: 'download-sentinel', pillar: 'Downloads', implemented: false,
+      name: 'Download Sentinel',
+      desc: 'Flags downloads with risky file types or misleading names.' },
+    { id: 'archive-trap', pillar: 'Downloads', implemented: false,
+      name: 'Archive Trap',
+      desc: 'Flags zipped installers and double-extension file tricks.' },
+    { id: 'fake-alert-shield', pillar: 'Pages', implemented: false,
+      name: 'Fake Alert Shield',
+      desc: 'Intercepts fake virus warnings and scareware popups.' },
+    { id: 'pressure-meter', pillar: 'Pages', implemented: false,
+      name: 'Pressure Meter',
+      desc: 'Flags fake countdowns and manufactured urgency.' },
+    { id: 'overlay-inspector', pillar: 'Pages', implemented: false,
+      name: 'Overlay Inspector',
+      desc: 'Flags invisible overlays and click-stealing page layers.' },
+    { id: 'shop-decoy', pillar: 'Pages', implemented: false,
+      name: 'Shop Decoy',
+      desc: 'Flags too-good-to-be-true prices on unfamiliar stores.' }
+  ]);
 
+  function computeDefaults() {
+    const modules = {};
+    for (const m of MODULES) modules[m.id] = m.implemented === true;
+    return Object.freeze({
+      v: VERSION,
+      modules: Object.freeze(modules),
+      hosts: Object.freeze({})
+    });
+  }
+  const DEFAULTS = computeDefaults();
+
+  /* ---- helpers ------------------------------------------------------------ */
   const kebab = (id) => String(id == null ? '' : id)
     .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
     .toLowerCase()
@@ -60,8 +97,8 @@
     return out;
   }
 
-  /* Canonical spellings on every write: legacy camelCase keys collapse
-   * onto their kebab form, so a module can never exist twice. */
+  /* Canonical spellings on every write: legacy camelCase keys collapse onto
+   * their kebab form, so a module can never exist twice. */
   function normalizeStored(s) {
     const out = Object.assign({}, s);
     const modules = {};
@@ -71,9 +108,9 @@
     for (const h of Object.keys(s.hosts || {})) {
       const bag = {};
       for (const mk of Object.keys(s.hosts[h] || {})) {
-        if (s.hosts[h][mk] === false) bag[kebab(mk)] = false;  // only "off" is meaningful
+        if (s.hosts[h][mk] === false) bag[kebab(mk)] = false;   // only "off" is meaningful
       }
-      hosts[normHost(h)] = bag;
+      if (Object.keys(bag).length) hosts[normHost(h)] = bag;
     }
     out.hosts = hosts;
     out.v = VERSION;
@@ -88,9 +125,7 @@
     } catch (e) { return null; }
   }
 
-  /* Serialized write queue: every settings write funnels through here,
-   * so a popup toggle can never race a background sync back to a stale
-   * snapshot. */
+  /* Serialized write queue: every settings write funnels through here. */
   let queue = Promise.resolve();
   function enqueue(job) {
     const run = queue.then(job, job);
@@ -98,40 +133,35 @@
     return run;
   }
 
-  async function get() {
-    return merge(DEFAULTS, (await readRaw()) || {});
-  }
+  async function get() { return merge(DEFAULTS, (await readRaw()) || {}); }
 
   async function set(a, b) {
     return enqueue(async () => {
       let patch = null;
       if (typeof a === 'string' && typeof b === 'boolean') {
-        patch = { modules: { [a]: b } };           // set(moduleId, on)
+        patch = { modules: { [a]: b } };                 // set(moduleId, on)
       } else if (a && typeof a === 'object' && !Array.isArray(a)) {
-        patch = a;                                 // set({ modules|hosts })
+        patch = a;                                       // set({ modules | hosts })
       } else {
         throw new TypeError('Settings.set expects (moduleId, on) or a patch object');
       }
-      const next = normalizeStored(
-        merge(merge(DEFAULTS, (await readRaw()) || {}), patch));
+      const next = normalizeStored(merge(merge(DEFAULTS, (await readRaw()) || {}), patch));
       await chrome.storage.local.set({ [KEY]: next });
       return next;
     });
   }
+  const setModule = (id, on) => set(id, on);
 
-  async function reset() {                         // back to pure defaults
+  async function reset() {                               // back to pure defaults
     return enqueue(async () => {
       await chrome.storage.local.set({ [KEY]: { v: VERSION } });
       return get();
     });
   }
 
-  /* Normalized view of s.modules: every spelling of a module id lands
-   * on one bucket, stored values overriding defaults. */
   function moduleMap(s) {
     const out = {};
-    const bags = [DEFAULTS.modules, (s && s.modules) || {}];
-    for (const bag of bags) {
+    for (const bag of [DEFAULTS.modules, (s && s.modules) || {}]) {
       for (const k of Object.keys(bag)) out[kebab(k)] = bag[k] === true;
     }
     return out;
@@ -155,28 +185,80 @@
     return true;
   }
 
-  /* One-time repair for profiles flattened by the toggle bug: if the
-   * stored object predates v2, re-assert the implemented defaults once.
-   * Deliberate offs made AFTER this are respected forever after. */
-  async function migrateIfNeeded(raw) {
-    if (!raw || raw.v === VERSION) return;
-    try {
-      await enqueue(async () => {
-        const fresh = (await readRaw()) || {};     // re-read inside the lock
-        if (fresh.v === VERSION) return;           // someone else migrated
-        const next = normalizeStored(merge(merge(DEFAULTS, fresh),
-          { v: VERSION, modules: { 'link-sniper': true, 'redirect-detective': true } }));
-        await chrome.storage.local.set({ [KEY]: next });
-      });
-      console.info('[SecondLook] settings migrated to v' + VERSION +
-        ' - implemented modules re-enabled.');
-    } catch (e) { /* defaults still apply at read time */ }
+  /* Sync snapshot for render fallbacks (popup's catch path). */
+  function defaults() {
+    return { v: VERSION, modules: Object.assign({}, DEFAULTS.modules), hosts: {} };
   }
 
-  const booted = (async () => {
-    await migrateIfNeeded(await readRaw());
-  })();
+  /* One-time repair for stale-schema profiles: if the stored object
+   * predates this schema, re-assert implemented defaults ONCE, then
+   * respect every choice made after. Idempotent + lock-guarded. */
+  async function migrate() {
+    return enqueue(async () => {
+      const fresh = await readRaw();
+      if (fresh && fresh.v === VERSION) return false;    // current schema: hands off
+      const next = normalizeStored(merge(merge(DEFAULTS, fresh || {}), { v: VERSION }));
+      for (const m of MODULES) {
+        if (m.implemented) next.modules[m.id] = true;    // bug-era repair
+      }
+      await chrome.storage.local.set({ [KEY]: next });
+      console.info('[SecondLook] settings migrated to v' + VERSION + '.');
+      return true;
+    });
+  }
 
-  root.Settings = { KEY, VERSION, DEFAULTS, get, set, reset,
-                    isModuleOn, moduleMap, kebab, booted };
+  /* ---- change notifications ------------------------------------------------
+   * One lazily-attached storage listener per context, filtered to the
+   * settings key (stats / chain writes can never trigger it), shared by
+   * all subscribers, deduped by fingerprint so echoes and no-op writes
+   * don't re-fire. */
+  const listeners = new Set();
+  let storageHooked = false;
+  let seeded = false;
+  let lastFingerprint = null;
+
+  function fingerprint(s) {
+    try { return JSON.stringify(normalizeStored(s)); } catch (e) { return String(Date.now()); }
+  }
+
+  function notify(rawNewValue) {
+    const settings = merge(DEFAULTS, rawNewValue || {});
+    const fp = fingerprint(settings);
+    if (fp === lastFingerprint) return;                  // echo / no-op write
+    lastFingerprint = fp;
+    for (const cb of listeners) {
+      try { cb(settings); } catch (e) { /* subscriber code */ }
+    }
+  }
+
+  function hookStorage() {
+    if (storageHooked) return;
+    storageHooked = true;
+    try {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local' || !changes[KEY]) return;
+        notify(changes[KEY].newValue);
+      });
+    } catch (e) { /* no storage events in this context */ }
+  }
+
+  function onChange(cb) {
+    if (typeof cb !== 'function') return () => {};
+    listeners.add(cb);
+    hookStorage();
+    if (!seeded) {                                       // seed: only real changes fire
+      seeded = true;
+      get().then((s) => { lastFingerprint = fingerprint(s); }).catch(() => {});
+    }
+    return () => { listeners.delete(cb); };
+  }
+
+  /* Self-heal at load - extension contexts ONLY. chrome.tabs exists in
+   * the SW and extension pages, never in content scripts, which share
+   * this file via the registered bundles and must stay read-only. */
+  if (typeof chrome !== 'undefined' && chrome.tabs) migrate().catch(() => {});
+
+  root.Settings = { __API: API, KEY, VERSION, DEFAULTS, MODULES,
+                    get, set, setModule, reset, defaults, migrate,
+                    isModuleOn, moduleMap, kebab, onChange };
 })();
