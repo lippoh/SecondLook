@@ -1,0 +1,40 @@
+/* SecondLook — modules/trust-badge/badge.css
+ * The green "this site checks out" chip. Dark on any page, like the
+ * rest of SecondLook's page furniture. Bottom-right: Redirect
+ * Detective's route card owns the bottom-left.
+ */
+#sl-tb-chip{
+  position:fixed;right:16px;bottom:16px;z-index:2147483646;
+  max-width:min(340px,calc(100vw - 32px));
+  background:rgba(13,18,24,.96);color:#e8edf2;
+  border:1px solid rgba(76,195,138,.5);border-radius:12px;
+  box-shadow:0 10px 32px rgba(0,0,0,.45);
+  font:12px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:10px 12px;
+  transition:opacity .3s ease;
+}
+#sl-tb-chip.sl-tb-out{opacity:0}
+@media (prefers-reduced-motion:no-preference){
+  #sl-tb-chip{animation:sl-tb-in .18s ease-out}
+  @keyframes sl-tb-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+}
+.sl-tb-head{display:flex;align-items:center;gap:8px}
+.sl-tb-dot{width:9px;height:9px;border-radius:50%;background:#4cc38a;flex:0 0 auto;
+  box-shadow:0 0 0 3px rgba(76,195,138,.18)}
+.sl-tb-head strong{flex:1 1 auto;font-size:12.5px}
+.sl-tb-why-btn{
+  flex:0 0 auto;border:0;background:transparent;cursor:pointer;border-radius:6px;
+  color:#8fd8b0;padding:2px 4px;font:600 11px/1 system-ui,sans-serif;
+}
+.sl-tb-why-btn:hover{text-decoration:underline}
+.sl-tb-close{
+  flex:0 0 auto;border:0;background:transparent;cursor:pointer;border-radius:6px;
+  color:#9aa7b4;padding:2px 4px;font:700 14px/1 system-ui,sans-serif;
+}
+.sl-tb-close:hover{color:#e8edf2;background:#232d39}
+.sl-tb-why-btn:focus-visible,.sl-tb-close:focus-visible{
+  outline:1px solid #4cc38a;outline-offset:1px;
+}
+.sl-tb-why{margin:6px 0 0;padding-left:16px;color:#bfe8d4}
+.sl-tb-why li{margin:2px 0}
+@media print{#sl-tb-chip{display:none}}

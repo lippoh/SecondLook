@@ -70,6 +70,16 @@ const CS_MODULES = {
       '/modules/redirect-detective/content.js'
     ],
     css: ['/modules/redirect-detective/content.css']
+  },
+  'trust-badge': {
+    scriptId: 'sl-trust-badge',
+    js: [
+      '/shared/settings.js',
+      '/shared/cs-bridge.js',
+      '/engine/verdict-engine.js',
+      '/modules/trust-badge/content.js'
+    ],
+    css: ['/modules/trust-badge/badge.css']
   }
 };
 

@@ -163,10 +163,12 @@
     const mods = snap && snap.stats && snap.stats.modules ? snap.stats.modules : {};
     const ls = mods['link-sniper'] || {};
     const rd = mods['redirect-detective'] || {};
+    const tb = mods['trust-badge'] || {};
     const parts = [];
     if (ls.scanned) parts.push(ls.scanned.toLocaleString() + ' links checked');
     if (ls.flagged) parts.push(ls.flagged.toLocaleString() + ' flagged');
     if (rd.routes) parts.push(rd.routes.toLocaleString() + ' routes traced');
+    if (tb.chips) parts.push(tb.chips.toLocaleString() + ' trust badges displayed');
     if (!parts.length) { row.hidden = true; return; }
     row.textContent = parts.join(' · ');
     row.hidden = false;

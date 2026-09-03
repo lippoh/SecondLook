@@ -1,4 +1,4 @@
-/* SecondLook — shared/settings.js v2.1 (FULL API)
+/* SecondLook — shared/settings.js v2.2 (FULL API)
  * Single source of truth for settings AND the module catalogue.
  * Loaded in every context:
  *   - service worker  : importScripts FIRST (bootstrap.js does this)
@@ -11,22 +11,20 @@
  *       migrate | onChange(cb) -> unsubscribe | isModuleOn | moduleMap |
  *       MODULES | KEY | VERSION | DEFAULTS | kebab | __API
  *
- * v2.1: an older/partial SecondLook.Settings (the lean v2 file, or this
- * file pasted after it) is now UPGRADED, not skipped. The old
- * "if (root.Settings) return" guard let a stale twin silently win when
- * a file got appended to; every consumer of onChange()/migrate()/MODULES
- * then died. Now: identical file twice = one copy; stale file = replaced.
- * VERSION is 3 so profiles that ran the lean v2 file also get the
- * one-time repair (re-enables the two implemented modules once).
+ * v2.2: Trust Badge added to the catalogue (implemented -> default ON);
+ *       storage schema VERSION bumped to 4 so the v-gated migration
+ *       re-enables it once for existing profiles.
+ * An older/partial SecondLook.Settings (lean v2, v2.1, or this file
+ * pasted after one of them) is UPGRADED, not skipped.
  */
 (() => {
   'use strict';
   const root = (globalThis.SecondLook = globalThis.SecondLook || {});
-  const API = 2.1;
+  const API = 2.2;
   if (root.Settings && root.Settings.__API === API) return;   // dedupe only
 
   const KEY = 'slSettings';
-  const VERSION = 3;
+  const VERSION = 4;
 
   /* ---- module catalogue ---------------------------------------------------
    * The popup renders this top to bottom. Defaults DERIVE from it:
@@ -64,7 +62,10 @@
       desc: 'Flags invisible overlays and click-stealing page layers.' },
     { id: 'shop-decoy', pillar: 'Pages', implemented: false,
       name: 'Shop Decoy',
-      desc: 'Flags too-good-to-be-true prices on unfamiliar stores.' }
+      desc: 'Flags too-good-to-be-true prices on unfamiliar stores.' },
+    { id: 'trust-badge', pillar: 'Pages', implemented: true,
+      name: 'Trust Badge',
+      desc: 'A quiet green "this site checks out" chip on pages that raise no flags.' }
   ]);
 
   function computeDefaults() {
