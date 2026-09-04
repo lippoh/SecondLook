@@ -1,265 +1,215 @@
-/* SecondLook — shared/settings.js v2.2 (FULL API)
- * Single source of truth for settings AND the module catalogue.
- * Loaded in every context:
- *   - service worker  : importScripts FIRST (bootstrap.js does this)
- *   - extension pages : <script src="shared/settings.js"> before popup.js
- *   - content scripts : first file of every registered bundle (read-only
- *                       there: the self-heal migration only runs where
- *                       chrome.tabs exists — SW and extension pages)
- *
- * API: get | set(id,on) | set({patch}) | setModule | reset | defaults |
- *       migrate | onChange(cb) -> unsubscribe | isModuleOn | moduleMap |
- *       MODULES | KEY | VERSION | DEFAULTS | kebab | __API
- *
- * v2.2: Trust Badge added to the catalogue (implemented -> default ON);
- *       storage schema VERSION bumped to 4 so the v-gated migration
- *       re-enables it once for existing profiles.
- * An older/partial SecondLook.Settings (lean v2, v2.1, or this file
- * pasted after one of them) is UPGRADED, not skipped.
- */
+/* ============================================================
+ * SecondLook - shared/settings.js  (core v2.4 - __API 2.4)
+ * Single source of truth for module state. One storage key:
+ * slSettings. Works in the SW (importScripts / dynamic import),
+ * in content scripts (ISOLATED world) and in extension pages.
+ * Writes are serialized (queue) and always a read-modify-write
+ * MERGE. Reads merge defaults. Change notices are key-filtered
+ * and fingerprint-deduped. The __API guard lets a newer copy of
+ * this file safely replace an older one in the same context.
+ * ============================================================ */
 (() => {
-  'use strict';
-  const root = (globalThis.SecondLook = globalThis.SecondLook || {});
-  const API = 2.2;
-  if (root.Settings && root.Settings.__API === API) return;   // dedupe only
+  "use strict";
 
-  const KEY = 'slSettings';
-  const VERSION = 4;
+  const NS = (globalThis.SecondLook = globalThis.SecondLook || {});
+  const __API = 2.4;
+  const prev = NS.Settings;
+  if (prev && typeof prev.__API === "number" && prev.__API >= __API) return; // same or newer already loaded
 
-  /* ---- module catalogue ---------------------------------------------------
-   * The popup renders this top to bottom. Defaults DERIVE from it:
-   * implemented => default ON, unbuilt => default OFF. Shipping a module
-   * = flip implemented AND bump VERSION (the v-gated migration then
-   * re-enables it for existing profiles). Only id + implemented are
-   * load-bearing; name/desc/pillar are presentation. */
-  const MODULES = Object.freeze([
-    { id: 'link-sniper', pillar: 'Links', implemented: true,
-      name: 'Link Sniper',
-      desc: 'Hover any link to see where it really goes before you click.' },
-    { id: 'redirect-detective', pillar: 'Links', implemented: true,
-      name: 'Redirect Detective',
-      desc: 'Traces the route a link takes and flags detours worth a second look.' },
-    { id: 'login-lookout', pillar: 'Logins', implemented: false,
-      name: 'Login Lookout',
-      desc: 'Warns when a login form appears on a domain that mimics a brand.' },
-    { id: 'twin-site-spotter', pillar: 'Logins', implemented: false,
-      name: 'Twin-Site Spotter',
-      desc: 'Spots look-alike and typo-squat domains shadowing the real ones.' },
-    { id: 'download-sentinel', pillar: 'Downloads', implemented: false,
-      name: 'Download Sentinel',
-      desc: 'Flags downloads with risky file types or misleading names.' },
-    { id: 'archive-trap', pillar: 'Downloads', implemented: false,
-      name: 'Archive Trap',
-      desc: 'Flags zipped installers and double-extension file tricks.' },
-    { id: 'fake-alert-shield', pillar: 'Pages', implemented: false,
-      name: 'Fake Alert Shield',
-      desc: 'Intercepts fake virus warnings and scareware popups.' },
-    { id: 'pressure-meter', pillar: 'Pages', implemented: false,
-      name: 'Pressure Meter',
-      desc: 'Flags fake countdowns and manufactured urgency.' },
-    { id: 'overlay-inspector', pillar: 'Pages', implemented: false,
-      name: 'Overlay Inspector',
-      desc: 'Flags invisible overlays and click-stealing page layers.' },
-    { id: 'shop-decoy', pillar: 'Pages', implemented: false,
-      name: 'Shop Decoy',
-      desc: 'Flags too-good-to-be-true prices on unfamiliar stores.' },
-    { id: 'trust-badge', pillar: 'Pages', implemented: true,
-      name: 'Trust Badge',
-      desc: 'A quiet green "this site checks out" chip on pages that raise no flags.' }
-  ]);
+  const KEY = "slSettings";
+  const VERSION = 5;
 
-  function computeDefaults() {
-    const modules = {};
-    for (const m of MODULES) modules[m.id] = m.implemented === true;
-    return Object.freeze({
-      v: VERSION,
-      modules: Object.freeze(modules),
-      hosts: Object.freeze({})
-    });
-  }
-  const DEFAULTS = computeDefaults();
+  const kebab = (s) =>
+    String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
-  /* ---- helpers ------------------------------------------------------------ */
-  const kebab = (id) => String(id == null ? '' : id)
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    .toLowerCase()
-    .replace(/[\s_]+/g, '-')
-    .replace(/-+/g, '-').replace(/^-|-$/g, '');
-  const normHost = (h) => String(h || '').toLowerCase().replace(/^www\./, '');
+  /* ---------- module registry (11) --------------------------
+   * pillar 1: look before you leap  |  pillar 2: guard what you type
+   * pillar 3: intercept the irreversible  |  pillar 4: quiet by default
+   * --------------------------------------------------------- */
+  const MODULES = [
+    { id: "link-sniper",        title: "Link Sniper",        pillar: 1, implemented: true,  defaultOn: true,
+      desc: "Hover a link to see where it really goes, before you click." },
+    { id: "redirect-detective", title: "Redirect Detective", pillar: 1, implemented: true,  defaultOn: true,
+      desc: "Shows the redirect chain that carried you to this page." },
+    { id: "trust-badge",        title: "Trust Badge",        pillar: 1, implemented: true,  defaultOn: true,
+      desc: "A quiet corner badge for how much this site deserves trust." },
+    { id: "form-guardian",      title: "Form Guardian",      pillar: 2, implemented: true,  defaultOn: true,
+      desc: "Watches login and payment forms - tells you where your input is really sent." },
+    { id: "credential-radar",   title: "Credential Radar",   pillar: 2, implemented: false, defaultOn: false,
+      desc: "Flags password fields on sites that have no business asking for one." },
+    { id: "download-sentinel",  title: "Download Sentinel",  pillar: 3, implemented: false, defaultOn: false,
+      desc: "Looks twice at downloads before they land." },
+    { id: "tab-shield",         title: "Tab Shield",         pillar: 3, implemented: false, defaultOn: false,
+      desc: "Guards against tabs that change identity while you're away." },
+    { id: "clipboard-guard",    title: "Clipboard Guard",    pillar: 3, implemented: false, defaultOn: false,
+      desc: "Watches for pages that rewrite what you paste." },
+    { id: "tracker-tally",      title: "Tracker Tally",      pillar: 4, implemented: false, defaultOn: false,
+      desc: "Counts who is following you on each page." },
+    { id: "fingerprint-flare",  title: "Fingerprint Flare",  pillar: 4, implemented: false, defaultOn: false,
+      desc: "Flags canvas and font fingerprinting probes." },
+    { id: "privacy-pulse",      title: "Privacy Pulse",      pillar: 4, implemented: false, defaultOn: false,
+      desc: "A quiet weekly summary of what the suite saw." },
+  ];
 
-  function merge(base, over) {
-    const out = Array.isArray(base) ? base.slice() : Object.assign({}, base);
-    if (!over || typeof over !== 'object') return out;
-    for (const k of Object.keys(over)) {
-      const b = out[k], o = over[k];
-      out[k] = (b && o && typeof b === 'object' && typeof o === 'object' &&
-                !Array.isArray(b) && !Array.isArray(o)) ? merge(b, o) : o;
-    }
+  const DEFAULTS = () => ({
+    v: VERSION,
+    theme: "auto",
+    modules: Object.fromEntries(MODULES.map((m) => [m.id, !!m.defaultOn])),
+    hosts: {},    // hosts[host] = { muted: false } - site-level preferences
+    perSite: {},  // perSite[host] = { [moduleId]: boolean } - per-site module override
+  });
+
+  /* ---------- read / merge --------------------------------- */
+  const raw = async () => ((await chrome.storage.local.get(KEY))[KEY]) || {};
+
+  function withDefaults(s) {
+    s = (s && typeof s === "object") ? s : {};
+    const d = DEFAULTS();
+    const out = Object.assign({}, d, s);
+    out.modules = Object.assign({}, d.modules, (s.modules && typeof s.modules === "object") ? s.modules : {});
+    out.hosts = Object.assign({}, (s.hosts && typeof s.hosts === "object") ? s.hosts : {});
+    out.perSite = Object.assign({}, (s.perSite && typeof s.perSite === "object") ? s.perSite : {});
+    if (typeof out.theme !== "string" || !["auto", "light", "dark"].includes(out.theme)) out.theme = "auto";
+    out.v = typeof s.v === "number" ? s.v : VERSION;
     return out;
   }
 
-  /* Canonical spellings on every write: legacy camelCase keys collapse onto
-   * their kebab form, so a module can never exist twice. */
-  function normalizeStored(s) {
-    const out = Object.assign({}, s);
-    const modules = {};
-    for (const k of Object.keys(s.modules || {})) modules[kebab(k)] = s.modules[k] === true;
-    out.modules = modules;
-    const hosts = {};
-    for (const h of Object.keys(s.hosts || {})) {
-      const bag = {};
-      for (const mk of Object.keys(s.hosts[h] || {})) {
-        if (s.hosts[h][mk] === false) bag[kebab(mk)] = false;   // only "off" is meaningful
+  function mergeSettings(base, patch) {
+    const out = Object.assign({}, base);
+    for (const [k, val] of Object.entries(patch || {})) {
+      const deep = (k === "modules" || k === "hosts" || k === "perSite");
+      if (deep && val && typeof val === "object" && !Array.isArray(val)) {
+        const cur = (base[k] && typeof base[k] === "object" && !Array.isArray(base[k])) ? base[k] : {};
+        const merged = Object.assign({}, cur);
+        for (const [k2, v2] of Object.entries(val)) {
+          merged[k2] =
+            (v2 && typeof v2 === "object" && !Array.isArray(v2) &&
+             cur[k2] && typeof cur[k2] === "object" && !Array.isArray(cur[k2]))
+              ? Object.assign({}, cur[k2], v2) : v2;
+        }
+        out[k] = merged;
+      } else {
+        out[k] = val;
       }
-      if (Object.keys(bag).length) hosts[normHost(h)] = bag;
     }
-    out.hosts = hosts;
-    out.v = VERSION;
     return out;
   }
 
-  async function readRaw() {
-    try {
-      const got = await chrome.storage.local.get(KEY);
-      const raw = got && got[KEY];
-      return (raw && typeof raw === 'object') ? raw : null;
-    } catch (e) { return null; }
-  }
-
-  /* Serialized write queue: every settings write funnels through here. */
-  let queue = Promise.resolve();
+  /* ---------- serialized write path ------------------------ */
+  let _queue = Promise.resolve();
   function enqueue(job) {
-    const run = queue.then(job, job);
-    queue = run.catch(() => {});
+    const run = _queue.then(job, job);
+    _queue = run.then(() => undefined, () => undefined);
     return run;
   }
 
-  async function get() { return merge(DEFAULTS, (await readRaw()) || {}); }
-
-  async function set(a, b) {
-    return enqueue(async () => {
-      let patch = null;
-      if (typeof a === 'string' && typeof b === 'boolean') {
-        patch = { modules: { [a]: b } };                 // set(moduleId, on)
-      } else if (a && typeof a === 'object' && !Array.isArray(a)) {
-        patch = a;                                       // set({ modules | hosts })
-      } else {
-        throw new TypeError('Settings.set expects (moduleId, on) or a patch object');
-      }
-      const next = normalizeStored(merge(merge(DEFAULTS, (await readRaw()) || {}), patch));
-      await chrome.storage.local.set({ [KEY]: next });
-      return next;
-    });
-  }
-  const setModule = (id, on) => set(id, on);
-
-  async function reset() {                               // back to pure defaults
-    return enqueue(async () => {
-      await chrome.storage.local.set({ [KEY]: { v: VERSION } });
-      return get();
-    });
-  }
-
-  function moduleMap(s) {
-    const out = {};
-    for (const bag of [DEFAULTS.modules, (s && s.modules) || {}]) {
-      for (const k of Object.keys(bag)) out[kebab(k)] = bag[k] === true;
-    }
-    return out;
-  }
-
-  function isModuleOn(s, moduleId, pageHost) {
-    const id = kebab(moduleId);
-    if (moduleMap(s)[id] !== true) return false;
-    if (pageHost) {
-      const h = normHost(pageHost);
-      const hosts = (s && s.hosts) || {};
-      for (const k of Object.keys(hosts)) {
-        const key = normHost(k);
-        if (h === key || h.endsWith('.' + key)) {
-          for (const mk of Object.keys(hosts[k] || {})) {
-            if (kebab(mk) === id && hosts[k][mk] === false) return false;
-          }
-        }
-      }
-    }
-    return true;
-  }
-
-  /* Sync snapshot for render fallbacks (popup's catch path). */
-  function defaults() {
-    return { v: VERSION, modules: Object.assign({}, DEFAULTS.modules), hosts: {} };
-  }
-
-  /* One-time repair for stale-schema profiles: if the stored object
-   * predates this schema, re-assert implemented defaults ONCE, then
-   * respect every choice made after. Idempotent + lock-guarded. */
-  async function migrate() {
-    return enqueue(async () => {
-      const fresh = await readRaw();
-      if (fresh && fresh.v === VERSION) return false;    // current schema: hands off
-      const next = normalizeStored(merge(merge(DEFAULTS, fresh || {}), { v: VERSION }));
-      for (const m of MODULES) {
-        if (m.implemented) next.modules[m.id] = true;    // bug-era repair
-      }
-      await chrome.storage.local.set({ [KEY]: next });
-      console.info('[SecondLook] settings migrated to v' + VERSION + '.');
-      return true;
-    });
-  }
-
-  /* ---- change notifications ------------------------------------------------
-   * One lazily-attached storage listener per context, filtered to the
-   * settings key (stats / chain writes can never trigger it), shared by
-   * all subscribers, deduped by fingerprint so echoes and no-op writes
-   * don't re-fire. */
-  const listeners = new Set();
-  let storageHooked = false;
-  let seeded = false;
-  let lastFingerprint = null;
-
-  function fingerprint(s) {
-    try { return JSON.stringify(normalizeStored(s)); } catch (e) { return String(Date.now()); }
-  }
-
-  function notify(rawNewValue) {
-    const settings = merge(DEFAULTS, rawNewValue || {});
-    const fp = fingerprint(settings);
-    if (fp === lastFingerprint) return;                  // echo / no-op write
-    lastFingerprint = fp;
-    for (const cb of listeners) {
-      try { cb(settings); } catch (e) { /* subscriber code */ }
-    }
-  }
-
-  function hookStorage() {
-    if (storageHooked) return;
-    storageHooked = true;
+  /* ---------- module resolution ---------------------------- */
+  function resolveOn(s, mid) {
     try {
-      chrome.storage.onChanged.addListener((changes, area) => {
-        if (area !== 'local' || !changes[KEY]) return;
-        notify(changes[KEY].newValue);
-      });
-    } catch (e) { /* no storage events in this context */ }
+      const host = (typeof location !== "undefined" && /^https?:$/.test(location.protocol)) ? location.hostname : null;
+      const site = host && s.perSite && s.perSite[host];
+      if (site && typeof site[mid] === "boolean") return site[mid];
+    } catch (e) {}
+    if (s.modules && typeof s.modules[mid] === "boolean") return s.modules[mid];
+    return !!DEFAULTS().modules[mid];
   }
 
-  function onChange(cb) {
-    if (typeof cb !== 'function') return () => {};
-    listeners.add(cb);
-    hookStorage();
-    if (!seeded) {                                       // seed: only real changes fire
-      seeded = true;
-      get().then((s) => { lastFingerprint = fingerprint(s); }).catch(() => {});
+  /* ---------- API ------------------------------------------ */
+  async function get() {
+    return withDefaults(await raw());
+  }
+
+  function set(a, b) {
+    if (typeof a === "string") return setModule(a, b);
+    const patch = (a && typeof a === "object" && !Array.isArray(a)) ? a : {};
+    return enqueue(async () => {
+      const base = withDefaults(await raw());
+      const next = mergeSettings(base, patch);
+      next.v = VERSION;
+      await chrome.storage.local.set({ [KEY]: next });
+      return { ok: true, settings: next };
+    });
+  }
+
+  function setModule(id, on) {
+    const mid = kebab(id);
+    if (!MODULES.some((m) => m.id === mid)) {
+      return Promise.resolve({ ok: false, error: "unknown module: " + mid });
     }
-    return () => { listeners.delete(cb); };
+    return set({ modules: { [mid]: !!on } });
   }
 
-  /* Self-heal at load - extension contexts ONLY. chrome.tabs exists in
-   * the SW and extension pages, never in content scripts, which share
-   * this file via the registered bundles and must stay read-only. */
-  if (typeof chrome !== 'undefined' && chrome.tabs) migrate().catch(() => {});
+  function reset() {
+    return enqueue(async () => {
+      const d = DEFAULTS();
+      await chrome.storage.local.set({ [KEY]: d });
+      return { ok: true, settings: d };
+    });
+  }
 
-  root.Settings = { __API: API, KEY, VERSION, DEFAULTS, MODULES,
-                    get, set, setModule, reset, defaults, migrate,
-                    isModuleOn, moduleMap, kebab, onChange };
+  function migrate() {
+    return enqueue(async () => {
+      const stored = await raw();
+      if (!stored || Object.keys(stored).length === 0) {
+        const d = DEFAULTS();
+        await chrome.storage.local.set({ [KEY]: d });
+        return { from: null, to: VERSION, changed: true };
+      }
+      const from = typeof stored.v === "number" ? stored.v : 0;
+      const next = withDefaults(stored);
+      next.v = VERSION;
+      if (JSON.stringify(next) === JSON.stringify(stored)) return { from: from, to: VERSION, changed: false };
+      await chrome.storage.local.set({ [KEY]: next });
+      return { from: from, to: VERSION, changed: true };
+    });
+  }
+
+  /* ---------- change notices (key-filtered + dedup) --------- */
+  const subs = new Set();
+  let lastPrint = null;
+  try {
+    if (chrome.storage && chrome.storage.onChanged) {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== "local" || !changes || !(KEY in changes)) return;
+        const s = withDefaults(changes[KEY].newValue);
+        let fp;
+        try { fp = JSON.stringify(s); } catch (e) { fp = "x" + Date.now(); }
+        if (fp === lastPrint) return;
+        lastPrint = fp;
+        for (const cb of Array.from(subs)) {
+          try { if (typeof cb === "function") cb(s); } catch (e) { console.error("[SL:settings] onChange listener failed:", e); }
+        }
+      });
+    }
+  } catch (e) {}
+  function onChange(cb) {
+    if (typeof cb !== "function") return () => {};
+    subs.add(cb);
+    return () => subs.delete(cb);
+  }
+
+  async function isModuleOn(id) {
+    return resolveOn(await get(), kebab(id));
+  }
+
+  /* ---------- export ---------------------------------------- */
+  NS.Settings = {
+    __API: __API,
+    KEY: KEY,
+    VERSION: VERSION,
+    MODULES: MODULES,
+    kebab: kebab,
+    DEFAULTS: DEFAULTS,
+    defaults: () => DEFAULTS(),
+    moduleMap: () => Object.fromEntries(MODULES.map((m) => [m.id, m])),
+    get: get,
+    set: set,
+    setModule: setModule,
+    reset: reset,
+    migrate: migrate,
+    onChange: onChange,
+    isModuleOn: isModuleOn,
+  };
+
+  console.info("[SL:settings] core up v" + __API + " - schema " + VERSION + ", " + MODULES.length + " modules registered");
 })();

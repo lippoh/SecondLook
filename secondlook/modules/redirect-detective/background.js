@@ -1,35 +1,22 @@
-/* SecondLook — modules/redirect-detective/background.js
- * Service-worker side. Load via importScripts AFTER shared/settings.js
- * (it also survives being loaded first - everything is resolved lazily).
+/* SecondLook — modules/redirect-detective/background.js v2.1
+ * Service-worker side. Tracks server-side redirect chains per navigation
+ * (webRequest, main_frame only, keyed by requestId), stores finished
+ * routes in storage.session (write-through), sets the hop-count badge +
+ * tooltip, and feeds the on-page route card via SL_RD_GET_CHAIN.
  *
- * What it does
- *   - Tracks server-side redirect chains per navigation (webRequest,
- *     main_frame only, keyed by requestId: one navigation = one chain).
- *   - Stores finished routes in storage.session (survives SW restarts),
- *     written through immediately - no debounce window to lose.
- *   - Sets the hop-count badge + tooltip; feeds the on-page route card
- *     (content.js) via SL_RD_GET_CHAIN.
- *
- * Correctness rules baked in
- *   - Listeners are registered synchronously at the top level so the SW
- *     wakes for navigations. When the module is off, handlers return
- *     immediately and all stored data is wiped: observed = nothing.
- *   - The module syncs its own on/off state from settings on SW start
- *     and on every settings-key change. It does not depend on bootstrap
- *     calling RD.setEnabled (kept for compatibility if you already do).
- *   - Engine helpers (isShortlinkHost / registrable) are OPTIONAL: if
- *     the engine build lacks them, local fallbacks keep the analysis
- *     alive instead of throwing on every navigation.
- *   - http -> https same-site upgrades at the start of a chain are
- *     browser noise, not routing: stripped before counting.
- *   - Nothing here ever writes settings. Stats are debounced and never
- *     touch the settings key.
+ * v2.1 — the observability build. The analysis logic was sound; the
+ * mystery was that a dead SW half fails silently. Now:
+ *   - SecondLook.RD.debug(): live state + the last 24 raw webRequest
+ *     events, callable from the SW console;
+ *   - a load line proving all four listeners registered;
+ *   - finalize() failures set an amber "!" badge and console.error.
  */
 (() => {
   'use strict';
   const root = (globalThis.SecondLook = globalThis.SecondLook || {});
   if (root.RD) return;
 
+  const RD_VERSION = '2.1';
   const CHAIN_KEY = 'slChains';           // storage.session
   const MAX_HOPS = 12;
   const KEEP_TABS = 25;
@@ -38,6 +25,13 @@
   let chains = {};
   const active = new Map();               // requestId -> { tabId, hops }
 
+  /* Ring buffer of raw events — the ground truth for debugging. */
+  const evtLog = [];
+  function logEvt(kind, detail) {
+    evtLog.push(kind + (detail ? ' ' + detail : ''));
+    if (evtLog.length > 24) evtLog.shift();
+  }
+
   const chainsReady = (async () => {
     try {
       const got = await chrome.storage.session.get(CHAIN_KEY);
@@ -45,6 +39,7 @@
         chains = got[CHAIN_KEY];
       }
     } catch (e) { chains = {}; }
+    logEvt('restored', Object.keys(chains).length + ' tab(s)');
   })();
 
   const FILTER = { urls: ['http://*/*', 'https://*/*'], types: ['main_frame'] };
@@ -56,9 +51,6 @@
     'bit.do', 'lnkd.in', 'rb.gy', 'smarturl.it', 'bl.ink', 'snip.ly',
     'shrtco.de', 'gg.gg', 'shorte.st', 'clc.to', 'vm.tiktok.com'
   ]);
-  /* Legitimate sign-in machinery, not suspicion: when a route hops
-   * through one of these, the "different companies" flag stays quiet
-   * (every other flag still applies). */
   const SSO_SAFE = [
     'login.microsoftonline.com', 'login.live.com', 'accounts.google.com',
     'accounts.youtube.com', 'login.yahoo.com', 'auth0.com', 'okta.com',
@@ -104,8 +96,7 @@
   }
 
   /* Leading same-site http -> https hops are the browser's own upgrade
-   * (HTTPS-First / HSTS), not a decision by the site. Strip them before
-   * counting or the badge lies about real routing. */
+   * (HTTPS-First / HSTS), not a decision by the site. */
   function stripHttpsUpgrades(hops) {
     let i = 0;
     while (i + 1 < hops.length) {
@@ -183,11 +174,25 @@
         : 'SecondLook - ' + count + ' redirects, nothing unusual.' });
     } catch (e) { /* tab can disappear mid-flight */ }
   }
+  function badgeFail(tabId) {
+    if (tabId < 0) return;
+    try {
+      chrome.action.setBadgeText({ tabId, text: '!' });
+      chrome.action.setBadgeBackgroundColor({ tabId, color: '#c0392b' });
+      if (chrome.action.setBadgeTextColor) {
+        chrome.action.setBadgeTextColor({ tabId, color: '#ffffff' });
+      }
+      chrome.action.setTitle({ tabId,
+        title: 'SecondLook - Redirect Detective hit an internal error ' +
+               '(see the service worker console)' });
+    } catch (e) { /* best-effort */ }
+  }
 
   /* ---------- webRequest handlers (top-level registration below) ---- */
   function onBeforeRequest(d) {
     if (!enabled) return;
     if (d.tabId < 0) return;
+    logEvt('req', d.requestId + ' t' + d.tabId);
     const ex = active.get(d.requestId);
     if (ex) {
       if (d.url && d.url !== ex.hops[ex.hops.length - 1]) ex.hops.push(d.url);
@@ -200,7 +205,8 @@
   function onBeforeRedirect(d) {
     if (!enabled) return;
     const chain = active.get(d.requestId);
-    if (!chain) return;
+    if (!chain) { logEvt('redir-orphan', d.requestId); return; }
+    logEvt('redir', d.requestId);
     if (d.redirectUrl && d.redirectUrl !== chain.hops[chain.hops.length - 1]) {
       chain.hops.push(d.redirectUrl);
     }
@@ -210,6 +216,7 @@
     if (!enabled) return;
     const chain = active.get(d.requestId);
     if (!chain) return;
+    logEvt('done', d.requestId);
     active.delete(d.requestId);
     if (d.url && d.url !== chain.hops[chain.hops.length - 1]) chain.hops.push(d.url);
     finalize(chain, null);
@@ -219,6 +226,7 @@
     if (!enabled) return;
     const chain = active.get(d.requestId);
     if (!chain) return;
+    logEvt('neterr', d.requestId + ' ' + (d.error || '?'));
     active.delete(d.requestId);
     finalize(chain, d.error || 'net error');
   }
@@ -241,10 +249,14 @@
       chains[chain.tabId] = record;
       prune();
       writeNow();                           // write-through: no debounce to lose
+      logEvt('finalize', 't' + chain.tabId + ' hops=' + hops.length +
+        ' ' + analysis.verdict);
       badgeSet(chain.tabId, hops.length - 1, analysis.verdict !== 'CLEAR', analysis);
       countRoute(record);
     } catch (e) {
-      console.warn('[RD] finalize failed:', e && e.message);
+      console.error('[RD] finalize failed:', e);
+      badgeFail(chain.tabId);
+      logEvt('finalize-ERROR', (e && e.message) || String(e));
     }
   }
 
@@ -288,25 +300,24 @@
     const next = on === true;
     if (next === enabled) return;
     enabled = next;
+    logEvt('setEnabled', String(next));
     if (!next) {
       active.clear();
       chains = {};
       try { chrome.storage.session.remove(CHAIN_KEY); } catch (e) {}
       try {
-        chrome.action.setBadgeText({ text: '' });      // all tabs
+        chrome.action.setBadgeText({ text: '' });
         chrome.action.setTitle({ title: '' });
       } catch (e) {}
     }
   }
 
-  /* Self-synced from settings: runs at SW start and on every settings
-   * change. Works with or without a bootstrap hook. */
   async function sync() {
     if (!root.Settings || typeof root.Settings.get !== 'function') return;
     try {
       const s = await root.Settings.get();
       setEnabled(root.Settings.isModuleOn(s, 'redirect-detective'));
-    } catch (e) { /* keep current state */ }
+    } catch (e) { logEvt('sync-ERROR', (e && e.message) || String(e)); }
   }
 
   async function getChainFor(tabId) {
@@ -315,13 +326,35 @@
     return chains[tabId] || null;
   }
 
+  /* ---- debug: call SecondLook.RD.debug() from the SW console ---- */
+  async function debug() {
+    await chainsReady;
+    let storedTabs = -1;
+    try {
+      const g = await chrome.storage.session.get(CHAIN_KEY);
+      storedTabs = g && g[CHAIN_KEY] ? Object.keys(g[CHAIN_KEY]).length : 0;
+    } catch (e) {}
+    return {
+      version: RD_VERSION,
+      enabled,
+      listeners: {
+        onBeforeRequest: chrome.webRequest.onBeforeRequest.hasListeners(),
+        onBeforeRedirect: chrome.webRequest.onBeforeRedirect.hasListeners(),
+        onCompleted: chrome.webRequest.onCompleted.hasListeners(),
+        onErrorOccurred: chrome.webRequest.onErrorOccurred.hasListeners()
+      },
+      activeRequests: active.size,
+      chainsInMemory: Object.keys(chains).length,
+      chainsInSessionStorage: storedTabs,
+      recentEvents: evtLog.slice()
+    };
+  }
+
   /* Tab hygiene */
   chrome.tabs.onRemoved.addListener((tabId) => {
     if (chains[tabId]) { delete chains[tabId]; writeNow(); }
     badgeClear(tabId);
   });
-  /* Prerender activation: the finished route belongs to the tab that
-   * swapped in, so hand it over instead of dropping it. */
   chrome.tabs.onReplaced.addListener((added, removed) => {
     if (chains[removed]) {
       chains[added] = chains[removed];
@@ -330,8 +363,7 @@
     }
   });
 
-  /* Route card endpoint (used by the content script, works from the
-   * popup too via msg.tabId). */
+  /* Route card endpoint (content script + popup via msg.tabId). */
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (!msg || msg.type !== 'SL_RD_GET_CHAIN') return false;
     const tabId = sender && sender.tab ? sender.tab.id
@@ -343,8 +375,7 @@
     return true;
   });
 
-  /* Settings changes -> re-sync (the key is read lazily so this also
-   * works if the module loads before shared/settings.js). */
+  /* Settings changes -> re-sync. */
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
     const key = (root.Settings && root.Settings.KEY) || 'slSettings';
@@ -357,7 +388,15 @@
   chrome.webRequest.onCompleted.addListener(onCompleted, FILTER);
   chrome.webRequest.onErrorOccurred.addListener(onErrorOccurred, FILTER);
 
+  const alive = chrome.webRequest.onBeforeRequest.hasListeners() &&
+                chrome.webRequest.onBeforeRedirect.hasListeners() &&
+                chrome.webRequest.onCompleted.hasListeners() &&
+                chrome.webRequest.onErrorOccurred.hasListeners();
+  console.info('[RD] SW side up v' + RD_VERSION + ' — webRequest listeners ' +
+    (alive ? 'registered' : 'MISSING (report this — it should be impossible)'));
+
   sync();
 
-  root.RD = { setEnabled, sync, getChainFor, analyzeChain };
+  root.RD = { version: RD_VERSION, setEnabled, sync, getChainFor,
+              analyzeChain, debug };
 })();

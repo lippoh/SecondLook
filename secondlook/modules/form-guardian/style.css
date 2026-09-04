@@ -1,0 +1,108 @@
+/* ============================================================
+ * SecondLook - content/form-guardian/styles.css  (v1.0)
+ * Same dark furniture as the rest of the suite: rgba(13,18,24,.96)
+ * Card sits bottom-left, lifted above Redirect Detective's slot.
+ * ============================================================ */
+
+.slfg-pill {
+  position: fixed !important;
+  z-index: 2147483000 !important;
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  max-width: min(440px, 90vw);
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(13, 18, 24, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  color: #e8edf2;
+  font-family: -apple-system, "Segoe UI", system-ui, Roboto, sans-serif;
+  font-size: 12px;
+  line-height: 1.35;
+  cursor: pointer;
+  pointer-events: auto;
+  animation: slfg-in 0.18s ease-out;
+}
+.slfg-pill strong { flex: none; letter-spacing: 0.3px; font-size: 11px; }
+.slfg-msg {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #cfd8e0;
+}
+
+.slfg-card {
+  position: fixed !important;
+  left: 16px !important;
+  bottom: 120px !important;            /* above Redirect Detective's card slot */
+  z-index: 2147483001 !important;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(13, 18, 24, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  color: #e8edf2;
+  font-family: -apple-system, "Segoe UI", system-ui, Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  animation: slfg-in 0.18s ease-out;
+}
+.slfg-card.slfg-warn  { border-left: 3px solid #f59e0b; }
+.slfg-card.slfg-bad   { border-left: 3px solid #ef4444; }
+.slfg-card.slfg-clear { border-left: 3px solid #22c55e; }
+
+.slfg-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.slfg-title { font-size: 13.5px; letter-spacing: 0.2px; }
+.slfg-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex: none;
+  background: #f59e0b; box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
+}
+.slfg-clear .slfg-dot { background: #22c55e; box-shadow: 0 0 6px rgba(34, 197, 94, 0.6); }
+.slfg-warn  .slfg-dot { background: #f59e0b; box-shadow: 0 0 6px rgba(245, 158, 11, 0.6); }
+.slfg-bad   .slfg-dot { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.6); }
+.slfg-clear strong, .slfg-clear .slfg-title { color: #7ee2a8; }
+.slfg-warn  strong, .slfg-warn  .slfg-title { color: #fbbf24; }
+.slfg-bad   strong, .slfg-bad   .slfg-title { color: #f87171; }
+
+.slfg-route {
+  font-size: 12px;
+  color: #9fb0c0;
+  margin: 0 0 10px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  word-break: break-all;
+}
+.slfg-reasons { margin: 0 0 12px; padding-left: 18px; color: #cfd8e0; }
+.slfg-reasons li { margin: 4px 0; }
+
+.slfg-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.slfg-btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8edf2;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.slfg-btn:hover { background: rgba(255, 255, 255, 0.12); }
+.slfg-btn-primary { background: #f59e0b; border-color: #f59e0b; color: #1a1206; }
+.slfg-btn-primary:hover { background: #d97706; }
+.slfg-btn-danger { background: #ef4444; border-color: #ef4444; color: #fff; }
+.slfg-btn-danger:hover { background: #dc2626; }
+.slfg-btn-ghost { background: transparent; }
+
+@keyframes slfg-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slfg-pill, .slfg-card { animation: none !important; }
+}

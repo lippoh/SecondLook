@@ -9,6 +9,10 @@
  *    patterns, .zip/.mov tricks, plus an info block: destination host,
  *    insecure http, file downloads, link text.
  *  - Live toggle: switching the module off mid-page tears everything down.
+ *  - Self-starts at load (activate() is idempotent, so the bridge's
+ *    initial watch fire AND this check can both run safely).
+ *  - Stats are best-effort: a bridge without bumpStat() can no longer
+ *    break the pill — that regression is what killed this module.
  */
 (() => {
   'use strict';
@@ -29,8 +33,26 @@
   let showTimer = 0;
   const verdictCache = new Map();
 
+  /* Stats must never be able to kill the pill: a missing or throwing
+   * bumpStat is swallowed here. */
+  function bump(field) {
+    try {
+      if (typeof root.Bridge.bumpStat === 'function') {
+        root.Bridge.bumpStat('link-sniper', field);
+      }
+    } catch (e) { /* best-effort */ }
+  }
+
   /* ---- lifecycle (driven by the bridge) ---- */
   root.Bridge.watch('link-sniper', (on) => (on ? activate() : deactivate()));
+  /* Belt-and-braces self-start: activate() guards against double-start,
+   * so this is harmless when watch()'s initial fire already ran — and
+   * life-saving if it ever doesn't. */
+  if (typeof root.Bridge.enabledFor === 'function') {
+    root.Bridge.enabledFor('link-sniper')
+      .then((on) => { if (on) activate(); })
+      .catch(() => {});
+  }
 
   function activate() {
     if (ctrl) return;
@@ -117,8 +139,8 @@
   function show(a) {
     if (!ctrl) return;
     const v = verdictFor(a);
-    root.Bridge.bumpStat('link-sniper', 'scanned');
-    if (v.verdict !== 'CLEAR') root.Bridge.bumpStat('link-sniper', 'flagged');
+    bump('scanned');
+    if (v.verdict !== 'CLEAR') bump('flagged');
     hideNow();
 
     pop = document.createElement('div');

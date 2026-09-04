@@ -6,16 +6,18 @@
  *   - every importScripts is guarded per file: one bad file logs a loud
  *     error and the rest still run;
  *   - the settings API is checked before use: a stale shared/settings.js
- *     produces ONE actionable console message instead of
- *     "Service worker registration failed. Status code: 15";
- *   - SL_SYNC_NOW lets the popup wake us for instant re-registration.
+ *     produces ONE actionable console message instead of status 15;
+ *   - SL_SYNC_NOW lets the popup wake us for instant re-registration;
+ *   - a boot line names every module that did NOT import (a lost
+ *     importScripts line used to fail silently — RD's SW half dying
+ *     with no trace was the exact symptom).
  *
- * This file NEVER writes settings in reaction to a change event — the
- * register/unregister churn is gone by construction.
+ * This file NEVER writes settings in reaction to a change event.
  */
 'use strict';
 
 for (const file of [
+  'rd-sw.js',
   '/shared/settings.js',
   '/engine/verdict-engine.js',
   '/modules/redirect-detective/background.js'
@@ -41,11 +43,16 @@ if (SETTINGS_STALE) {
   console.error(
     '[SL] shared/settings.js on disk is the OLD version — missing: ' +
     missingApi.join(', ') + '.\n' +
-    '    Open shared/settings.js, SELECT ALL, delete, paste the complete v2.1\n' +
-    '    file (first line: "SecondLook — shared/settings.js v2.1"), save, then\n' +
-    '    reload the extension. Running degraded until then.'
+    '    Open shared/settings.js, SELECT ALL, delete, paste the complete v2.3\n' +
+    '    file, save, then reload the extension. Running degraded until then.'
   );
 }
+
+/* Boot line: proves which SW-side modules actually imported. */
+console.info('[SL] SW modules — Settings:',
+  SL.Settings ? 'v' + SL.Settings.VERSION : 'MISSING',
+  '| Engine:', SL.Engine ? (SL.Engine.VERSION || 'ok') : 'MISSING',
+  '| RD:', SL.RD ? ('v' + (SL.RD.version || 'ok')) : 'MISSING');
 
 /* Content bundles per implemented module. Anything not listed here is
  * never injected anywhere. CSS is registered with the bundle so page
@@ -69,7 +76,7 @@ const CS_MODULES = {
       '/shared/cs-bridge.js',
       '/modules/redirect-detective/content.js'
     ],
-    css: ['/modules/redirect-detective/content.css']
+    css: ['/modules/redirect-detective/card.css']
   },
   'trust-badge': {
     scriptId: 'sl-trust-badge',
@@ -151,8 +158,6 @@ function onSettingsChanged() {
 if (!SETTINGS_STALE) {
   SL.Settings.onChange(onSettingsChanged);
 } else {
-  /* Fallback for a stale settings.js: listen ourselves, filtered to the
-   * settings key so stats/chain writes can never trigger a re-sync. */
   try {
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === 'local' && changes[SETTINGS_KEY]) onSettingsChanged();
@@ -162,7 +167,7 @@ if (!SETTINGS_STALE) {
 
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (!SETTINGS_STALE) {
-    try { await SL.Settings.migrate(); }   // one-time clean defaults (schema-gated)
+    try { await SL.Settings.migrate(); }
     catch (e) { console.warn('[SL] migrate failed:', e && e.message); }
   }
   console.info('[SL] installed/updated:', details && details.reason);
@@ -204,7 +209,9 @@ async function handleSnapshot(tabId) {
       if (tab && tab.url && /^https?:/i.test(tab.url)) {
         snap.pageVerdict = SL.Engine.analyze(tab.url, { source: 'page' });
       }
-      snap.chain = await SL.RD.getChainFor(tabId);
+      if (SL.RD && typeof SL.RD.getChainFor === 'function') {
+        snap.chain = await SL.RD.getChainFor(tabId);
+      }
     }
   } catch (e) { /* partial snapshot is fine */ }
   try {
