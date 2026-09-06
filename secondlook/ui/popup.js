@@ -125,7 +125,8 @@
     const hopsEl = $('routeHops');
     const whyEl = $('routeReasons');
     const chain = snap && snap.chain;
-    if (!chain || !Array.isArray(chain.hops) || chain.hops.length < 2) {
+    const hops = Array.isArray(chain) ? chain : chain && chain.hops;
+    if (!Array.isArray(hops) || hops.length < 2) {
       panel.hidden = true;
       return;
     }
@@ -133,7 +134,7 @@
     hopsEl.textContent = '';
     whyEl.textContent = '';
 
-    chain.hops.forEach((h, i) => {
+    hops.forEach((h, i) => {
       const li = document.createElement('li');
       let host = h;
       try { host = new URL(h).hostname.replace(/^www\./, ''); } catch (e) {}
@@ -146,11 +147,11 @@
       span.textContent = host;
       span.title = h;
       li.append(dot, span);
-      if (i === chain.hops.length - 1) li.classList.add('hop-final');
+      if (i === hops.length - 1) li.classList.add('hop-final');
       hopsEl.appendChild(li);
     });
 
-    for (const t of (chain.reasons || [])) {
+    for (const t of ((chain && chain.reasons) || [])) {
       const li = document.createElement('li');
       li.textContent = t;
       whyEl.appendChild(li);
@@ -168,7 +169,7 @@
     if (ls.scanned) parts.push(ls.scanned.toLocaleString() + ' links checked');
     if (ls.flagged) parts.push(ls.flagged.toLocaleString() + ' flagged');
     if (rd.routes) parts.push(rd.routes.toLocaleString() + ' routes traced');
-    if (tb.chips) parts.push(tb.chips.toLocaleString() + ' trust badges displayed');
+    if (tb.flagged) parts.push(tb.flagged.toLocaleString() + ' trust badges flagged');
     if (!parts.length) { row.hidden = true; return; }
     row.textContent = parts.join(' · ');
     row.hidden = false;

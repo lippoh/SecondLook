@@ -12,6 +12,11 @@
  *     importScripts line used to fail silently — RD's SW half dying
  *     with no trace was the exact symptom).
  *
+ * v1.5 — Part 4: registers the Form Guardian bundle
+ *   (modules/form-guardian). isModuleOn is called through a signature
+ *   shim so this file works with the v2.3 sync API
+ *   isModuleOn(settings, id) OR a future async isModuleOn(id).
+ *
  * This file NEVER writes settings in reaction to a change event.
  */
 'use strict';
@@ -87,8 +92,34 @@ const CS_MODULES = {
       '/modules/trust-badge/content.js'
     ],
     css: ['/modules/trust-badge/badge.css']
+  },
+  'form-guardian': {                                  /* Part 4 — new */
+    scriptId: 'sl-form-guardian',
+    js: [
+      '/shared/settings.js',
+      '/engine/verdict-engine.js',
+      '/modules/form-guardian/content.js'
+    ],
+    css: ['/modules/form-guardian/guardian.css']
   }
 };
+
+/* ---- isModuleOn signature shim ------------------------------------
+ * v2.3 is synchronous: isModuleOn(settings, id) -> boolean.
+ * If a future settings core switches to async isModuleOn(id) ->
+ * Promise, the probe call below returns a thenable and we re-call it
+ * the new way. Returns boolean OR Promise — callers await it.
+ * Works correctly under either API; delete only if you are certain
+ * the sync signature is forever. */
+function isModuleOnCompat(settings, moduleId) {
+  try {
+    const r = SL.Settings.isModuleOn(settings, moduleId);
+    if (r && typeof r.then === 'function') return SL.Settings.isModuleOn(moduleId);
+    return !!r;
+  } catch (e) {
+    return false;
+  }
+}
 
 let syncing = null;
 let syncQueued = false;
@@ -97,7 +128,7 @@ async function syncScripts() {
   const settings = await SL.Settings.get();
   const wanted = [];
   for (const [moduleId, def] of Object.entries(CS_MODULES)) {
-    if (SL.Settings.isModuleOn(settings, moduleId)) wanted.push(def);
+    if (await isModuleOnCompat(settings, moduleId)) wanted.push(def);
   }
   const wantedIds = new Set(wanted.map((d) => d.scriptId));
 
@@ -146,7 +177,7 @@ function requestSync() {
 async function syncRD() {
   try {
     const s = await SL.Settings.get();
-    SL.RD.setEnabled(SL.Settings.isModuleOn(s, 'redirect-detective'));
+    SL.RD.setEnabled(await isModuleOnCompat(s, 'redirect-detective'));
   } catch (e) { /* RD stays in its last known state; it also self-syncs */ }
 }
 

@@ -1,0 +1,31 @@
+.sl-tb-marked {
+  outline: 2px dashed #b45309 !important;
+  outline-offset: 2px !important;
+  cursor: pointer !important;
+}
+.sl-tb-details {
+  position: fixed;
+  z-index: 2147483646;
+  width: min(320px, calc(100vw - 16px));
+  padding: 12px;
+  border: 1px solid #d5dfe8;
+  border-left: 3px solid #b45309;
+  border-radius: 8px;
+  background: #fff;
+  color: #16222d;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, .2);
+  font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.sl-tb-details strong { display: block; margin-bottom: 6px; }
+.sl-tb-details p { margin: 0 0 10px; }
+.sl-tb-details button {
+  border: 1px solid #b45309;
+  border-radius: 6px;
+  background: #fff;
+  color: #8a3f05;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+@media (prefers-color-scheme: dark) {
+  .sl-tb-details { background: #171e26; color: #e9eef3; border-color: #2a3540; }
+}

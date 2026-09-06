@@ -1,5 +1,5 @@
 /* ============================================================
- * SecondLook - content/form-guardian/styles.css  (v1.0)
+ * SecondLook — modules/form-guardian/guardian.css  (v1.1)
  * Same dark furniture as the rest of the suite: rgba(13,18,24,.96)
  * Card sits bottom-left, lifted above Redirect Detective's slot.
  * ============================================================ */
@@ -101,7 +101,7 @@
 
 @keyframes slfg-in {
   from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: none; }
+  to   { opacity: 1; transform: none; } 
 }
 @media (prefers-reduced-motion: reduce) {
   .slfg-pill, .slfg-card { animation: none !important; }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SecondLook",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "description": "We don't tell you that the internet is dangerous. We tell you when something deserves a second look.",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -11,14 +11,27 @@
     "alarms",
     "webRequest",
     "declarativeNetRequest",
-    "notifications"
+    "contextMenus"
   ],
   "host_permissions": ["<all_urls>"],
   "background": {
-    "service_worker": "background/bootstrap.js"
+    "service_worker": "background/runtime.js"
   },
   "action": {
     "default_title": "SecondLook",
-    "default_popup": "ui/popup.html"
-  }
+    "default_popup": "ui/popup.html",
+    "default_icon": {
+      "16": "assets/icons/icon-16.png",
+      "32": "assets/icons/icon-32.png",
+      "48": "assets/icons/icon-48.png",
+      "128": "assets/icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "assets/icons/icon-16.png",
+    "32": "assets/icons/icon-32.png",
+    "48": "assets/icons/icon-48.png",
+    "128": "assets/icons/icon-128.png"
+  },
+  "content_scripts": []
 }
